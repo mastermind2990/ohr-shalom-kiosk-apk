@@ -3,16 +3,8 @@ package com.ohrshalom.kioskapp.payment
 import android.content.Context
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
-import com.stripe.stripeterminal.callable.Callback
-import com.stripe.stripeterminal.callable.Cancelable
-import com.stripe.stripeterminal.callable.ConnectionTokenCallback
-import com.stripe.stripeterminal.callable.PaymentIntentCallback
-import com.stripe.stripeterminal.callable.TerminalListener
-import com.stripe.stripeterminal.model.external.ConnectionTokenException
-import com.stripe.stripeterminal.model.external.PaymentIntent
-import com.stripe.stripeterminal.model.external.PaymentIntentParameters
-import com.stripe.stripeterminal.model.external.Reader
-import com.stripe.stripeterminal.model.external.TerminalException
+import com.stripe.stripeterminal.external.callable.*
+import com.stripe.stripeterminal.external.models.*
 
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -45,18 +37,14 @@ class StripePaymentManager(private val context: Context) {
             if (!Terminal.isInitialized()) {
                 Terminal.initTerminal(
                     context.applicationContext,
-                    object : TerminalListener {
+                    tokenProvider = { callback ->
+                        // For development/testing - in production, implement server endpoint
+                        Log.w(TAG, "Connection token provider called - implement server-side token generation")
+                        callback.onFailure(ConnectionTokenException("Token provider not implemented - needs server endpoint"))
+                    },
+                    listener = object : TerminalListener {
                         override fun onUnexpectedReaderDisconnect(reader: Reader) {
                             Log.w(TAG, "Reader unexpectedly disconnected: ${reader.serialNumber}")
-                        }
-                    },
-                    object : ConnectionTokenCallback {
-                        override fun onSuccess(token: String) {
-                            Log.d(TAG, "Connection token retrieved successfully")
-                        }
-                        
-                        override fun onFailure(exception: ConnectionTokenException) {
-                            Log.e(TAG, "Failed to retrieve connection token", exception)
                         }
                     }
                 )
