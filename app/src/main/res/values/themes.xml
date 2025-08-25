@@ -1,0 +1,104 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.OhrShalomKiosk" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/kiosk_primary</item>
+        <item name="colorPrimaryVariant">@color/kiosk_primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/kiosk_accent</item>
+        <item name="colorSecondaryVariant">@color/hebrew_gold</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor" tools:targetApi="l">@color/kiosk_primary_dark</item>
+        <!-- Navigation bar color. -->
+        <item name="android:navigationBarColor">@color/kiosk_primary_dark</item>
+        <!-- Background colors. -->
+        <item name="android:windowBackground">@color/kiosk_background</item>
+        <item name="colorSurface">@color/background_card</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <!-- Customize your theme here. -->
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:fitsSystemWindows">false</item>
+    </style>
+
+    <!-- Fullscreen theme for kiosk mode -->
+    <style name="Theme.OhrShalomKiosk.Fullscreen" parent="Theme.OhrShalomKiosk">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:fitsSystemWindows">false</item>
+        <item name="android:windowBackground">@color/kiosk_background</item>
+        
+        <!-- Hide system UI for kiosk mode -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        
+        <!-- Prevent screen rotation -->
+        <item name="android:screenOrientation">landscape</item>
+        
+        <!-- Keep screen on -->
+        <item name="android:keepScreenOn">true</item>
+        
+        <!-- Disable animations for kiosk stability -->
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:activityOpenEnterAnimation">@null</item>
+        <item name="android:activityOpenExitAnimation">@null</item>
+        <item name="android:activityCloseEnterAnimation">@null</item>
+        <item name="android:activityCloseExitAnimation">@null</item>
+        <item name="android:taskOpenEnterAnimation">@null</item>
+        <item name="android:taskOpenExitAnimation">@null</item>
+        <item name="android:taskCloseEnterAnimation">@null</item>
+        <item name="android:taskCloseExitAnimation">@null</item>
+        <item name="android:taskToFrontEnterAnimation">@null</item>
+        <item name="android:taskToFrontExitAnimation">@null</item>
+        <item name="android:taskToBackEnterAnimation">@null</item>
+        <item name="android:taskToBackExitAnimation">@null</item>
+    </style>
+
+    <!-- Dialog theme for admin modals -->
+    <style name="Theme.OhrShalomKiosk.Dialog" parent="ThemeOverlay.Material3.Dialog">
+        <item name="colorPrimary">@color/kiosk_primary</item>
+        <item name="colorSecondary">@color/kiosk_accent</item>
+        <item name="android:windowBackground">@color/background_card</item>
+    </style>
+
+    <!-- Button styles for kiosk interface -->
+    <style name="KioskButton" parent="Widget.Material3.Button">
+        <item name="android:layout_height">60dp</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="backgroundTint">@color/kiosk_primary</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="cornerRadius">8dp</item>
+    </style>
+
+    <style name="AmountButton" parent="KioskButton">
+        <item name="android:layout_height">80dp</item>
+        <item name="android:textSize">24sp</item>
+    </style>
+
+    <!-- Text styles -->
+    <style name="HebrewText">
+        <item name="android:fontFamily">serif</item>
+        <item name="android:textDirection">locale</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="KioskTitle">
+        <item name="android:textSize">24sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:gravity">center</item>
+    </style>
+
+    <style name="KioskSubtitle">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:gravity">center</item>
+    </style>
+</resources>

@@ -1,0 +1,42 @@
+<resources>
+    <string name="app_name">Ohr Shalom Kiosk</string>
+    
+    <!-- Kiosk Messages -->
+    <string name="kiosk_mode_enabled">Kiosk mode enabled</string>
+    <string name="kiosk_mode_disabled">Kiosk mode disabled</string>
+    <string name="payment_processing">Processing payment...</string>
+    <string name="payment_successful">Payment successful! Thank you for your donation.</string>
+    <string name="payment_failed">Payment failed. Please try again.</string>
+    <string name="nfc_not_supported">NFC not supported on this device</string>
+    <string name="nfc_disabled">NFC is disabled. Please enable NFC in settings.</string>
+    <string name="nfc_ready">NFC is enabled and ready for Tap to Pay</string>
+    
+    <!-- Admin Messages -->
+    <string name="admin_access_required">Admin access required</string>
+    <string name="invalid_pin">Invalid PIN</string>
+    <string name="config_saved">Configuration saved successfully</string>
+    <string name="config_reset">Configuration reset to defaults (Davenport, FL)</string>
+    
+    <!-- Location Information -->
+    <string name="default_location">Default Location: Davenport, FL</string>
+    <string name="latitude_label">Latitude</string>
+    <string name="longitude_label">Longitude</string>
+    <string name="timezone_label">Time Zone</string>
+    
+    <!-- Organization Information -->
+    <string name="organization_name">Ohr Shalom</string>
+    <string name="donation_thank_you">Thank you for your generous donation!</string>
+    <string name="may_blessings_follow">May your generosity bring blessings.</string>
+    
+    <!-- Hebrew Calendar -->
+    <string name="hebrew_calendar">Hebrew Calendar</string>
+    <string name="shabbat_times">Shabbat Times</string>
+    <string name="prayer_times">Prayer Times</string>
+    <string name="parsha_week">Parashat HaShavua</string>
+    
+    <!-- Error Messages -->
+    <string name="error_loading_calendar">Error loading Hebrew calendar</string>
+    <string name="error_processing_payment">Error processing payment</string>
+    <string name="error_loading_config">Error loading configuration</string>
+    <string name="error_network">Network connection required</string>
+</resources>

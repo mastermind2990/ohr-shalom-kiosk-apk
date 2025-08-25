@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Kiosk Colors -->
+    <color name="kiosk_primary">#1E40AF</color>
+    <color name="kiosk_primary_dark">#1E3A8A</color>
+    <color name="kiosk_accent">#F59E0B</color>
+    <color name="kiosk_background">#F0F9FF</color>
+    
+    <!-- Status Colors -->
+    <color name="success_green">#10B981</color>
+    <color name="error_red">#EF4444</color>
+    <color name="warning_yellow">#F59E0B</color>
+    <color name="info_blue">#3B82F6</color>
+    
+    <!-- Hebrew/Jewish Theme Colors -->
+    <color name="hebrew_gold">#FFD700</color>
+    <color name="hebrew_blue">#0047AB</color>
+    <color name="shabbat_purple">#8B5CF6</color>
+    <color name="prayer_green">#059669</color>
+    
+    <!-- Standard Material Colors -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Gradient Colors -->
+    <color name="gradient_start">#667eea</color>
+    <color name="gradient_end">#764ba2</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#1F2937</color>
+    <color name="text_secondary">#6B7280</color>
+    <color name="text_disabled">#9CA3AF</color>
+    
+    <!-- Background Colors -->
+    <color name="background_light">#F9FAFB</color>
+    <color name="background_card">#FFFFFF</color>
+    <color name="background_overlay">#80000000</color>
+</resources>
