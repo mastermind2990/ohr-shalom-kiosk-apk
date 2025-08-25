@@ -368,7 +368,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun saveConfig(configJson: String): Boolean {
             return try {
-                val config = gson.fromJson(configJson, ConfigData::class.java)
+                val config = gson.fromJson(configJson, ConfigManager.Config::class.java)
                 configManager.saveConfig(config)
                 true
             } catch (e: Exception) {
@@ -467,18 +467,5 @@ class MainActivity : AppCompatActivity() {
         val amount: Int, // Amount in cents
         val currency: String,
         val email: String?
-    )
-    
-    data class ConfigData(
-        val latitude: Double,
-        val longitude: Double,
-        val timeZone: String,
-        val adminPin: String,
-        val organizationName: String,
-        val geonameId: Int?,
-        val locationMethod: String,
-        val shacharit: String,
-        val mincha: String,
-        val maariv: String
     )
 }
