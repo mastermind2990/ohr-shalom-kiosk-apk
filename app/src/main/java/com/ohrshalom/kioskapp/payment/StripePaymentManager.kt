@@ -3,6 +3,7 @@ package com.ohrshalom.kioskapp.payment
 import android.content.Context
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
+// Updated imports for Stripe Terminal 4.6.0 Tap to Pay
 import com.stripe.stripeterminal.external.callable.*
 import com.stripe.stripeterminal.external.models.*
 
