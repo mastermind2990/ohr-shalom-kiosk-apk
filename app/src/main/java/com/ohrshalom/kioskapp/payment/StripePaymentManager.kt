@@ -55,9 +55,7 @@ class StripePaymentManager(private val context: Context) {
                         }
                     },
                     listener = object : TerminalListener {
-                        override fun onUnexpectedReaderDisconnect(reader: Reader) {
-                            Log.w(TAG, "Reader unexpectedly disconnected: ${reader.serialNumber}")
-                        }
+                        // Empty implementation - will add correct methods after compilation succeeds
                     }
                 )
                 
