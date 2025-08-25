@@ -68,8 +68,8 @@ dependencies {
     // WebView support
     implementation 'androidx.webkit:webkit:1.12.1'
 
-    // Stripe Terminal SDK for NFC/Tap to Pay  
-    implementation 'com.stripe:stripeterminal:3.7.0'
+    // Stripe Terminal SDK for NFC/Tap to Pay - Using stable version
+    implementation 'com.stripe:stripeterminal:3.0.1'
     // Note: stripeterminal-localmobile may not be publicly available
     // Using main stripeterminal SDK which includes local mobile functionality
     

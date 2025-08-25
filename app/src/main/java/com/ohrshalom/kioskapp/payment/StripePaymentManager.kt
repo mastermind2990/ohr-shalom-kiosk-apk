@@ -3,16 +3,16 @@ package com.ohrshalom.kioskapp.payment
 import android.content.Context
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
-import com.stripe.stripeterminal.external.callable.Callback
-import com.stripe.stripeterminal.external.callable.Cancelable
-import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
-import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
-import com.stripe.stripeterminal.external.callable.TerminalListener
-import com.stripe.stripeterminal.external.models.ConnectionTokenException
-import com.stripe.stripeterminal.external.models.PaymentIntent
-import com.stripe.stripeterminal.external.models.PaymentIntentParameters
-import com.stripe.stripeterminal.external.models.Reader
-import com.stripe.stripeterminal.external.models.TerminalException
+import com.stripe.stripeterminal.callable.Callback
+import com.stripe.stripeterminal.callable.Cancelable
+import com.stripe.stripeterminal.callable.ConnectionTokenCallback
+import com.stripe.stripeterminal.callable.PaymentIntentCallback
+import com.stripe.stripeterminal.callable.TerminalListener
+import com.stripe.stripeterminal.model.external.ConnectionTokenException
+import com.stripe.stripeterminal.model.external.PaymentIntent
+import com.stripe.stripeterminal.model.external.PaymentIntentParameters
+import com.stripe.stripeterminal.model.external.Reader
+import com.stripe.stripeterminal.model.external.TerminalException
 
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
