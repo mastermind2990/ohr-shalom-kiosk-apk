@@ -13,7 +13,7 @@ import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.Reader
 import com.stripe.stripeterminal.external.models.TerminalException
-import com.stripe.stripeterminal.ConnectionTokenProvider
+
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -45,17 +45,18 @@ class StripePaymentManager(private val context: Context) {
             if (!Terminal.isInitialized()) {
                 Terminal.initTerminal(
                     context.applicationContext,
-                    tokenProvider = object : ConnectionTokenProvider {
-                        override fun fetchConnectionToken(callback: ConnectionTokenCallback) {
-                            // In a real implementation, you would fetch this from your server
-                            // For now, we'll use a placeholder - you need to implement server-side token generation
-                            Log.w(TAG, "Connection token provider called - implement server-side token generation")
-                            callback.onFailure(ConnectionTokenException("Token provider not implemented"))
-                        }
-                    },
-                    listener = object : TerminalListener {
+                    object : TerminalListener {
                         override fun onUnexpectedReaderDisconnect(reader: Reader) {
                             Log.w(TAG, "Reader unexpectedly disconnected: ${reader.serialNumber}")
+                        }
+                    },
+                    object : ConnectionTokenCallback {
+                        override fun onSuccess(token: String) {
+                            Log.d(TAG, "Connection token retrieved successfully")
+                        }
+                        
+                        override fun onFailure(exception: ConnectionTokenException) {
+                            Log.e(TAG, "Failed to retrieve connection token", exception)
                         }
                     }
                 )
