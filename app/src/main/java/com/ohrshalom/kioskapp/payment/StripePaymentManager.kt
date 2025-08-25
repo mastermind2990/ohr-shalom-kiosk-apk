@@ -3,9 +3,18 @@ package com.ohrshalom.kioskapp.payment
 import android.content.Context
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
-// Updated imports for Stripe Terminal 4.6.0 Tap to Pay
-import com.stripe.stripeterminal.external.callable.*
-import com.stripe.stripeterminal.external.models.*
+// Stripe Terminal 4.6.0 Tap to Pay imports
+import com.stripe.stripeterminal.external.callable.Callback
+import com.stripe.stripeterminal.external.callable.Cancelable
+import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
+import com.stripe.stripeterminal.external.callable.ConnectionTokenProvider
+import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
+import com.stripe.stripeterminal.external.callable.TerminalListener
+import com.stripe.stripeterminal.external.models.ConnectionTokenException
+import com.stripe.stripeterminal.external.models.PaymentIntent
+import com.stripe.stripeterminal.external.models.PaymentIntentParameters
+import com.stripe.stripeterminal.external.models.Reader
+import com.stripe.stripeterminal.external.models.TerminalException
 
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -38,10 +47,12 @@ class StripePaymentManager(private val context: Context) {
             if (!Terminal.isInitialized()) {
                 Terminal.initTerminal(
                     context.applicationContext,
-                    tokenProvider = { callback ->
-                        // For development/testing - in production, implement server endpoint
-                        Log.w(TAG, "Connection token provider called - implement server-side token generation")
-                        callback.onFailure(ConnectionTokenException("Token provider not implemented - needs server endpoint"))
+                    tokenProvider = object : ConnectionTokenProvider {
+                        override fun fetchConnectionToken(callback: ConnectionTokenCallback) {
+                            // For development/testing - in production, implement server endpoint
+                            Log.w(TAG, "Connection token provider called - implement server-side token generation")
+                            callback.onFailure(ConnectionTokenException("Token provider not implemented - needs server endpoint"))
+                        }
                     },
                     listener = object : TerminalListener {
                         override fun onUnexpectedReaderDisconnect(reader: Reader) {
