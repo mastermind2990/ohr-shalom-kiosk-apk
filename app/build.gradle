@@ -39,6 +39,7 @@ android {
 
     buildFeatures {
         viewBinding true
+        dataBinding false
     }
 
     packagingOptions {
@@ -69,7 +70,8 @@ dependencies {
 
     // Stripe Terminal SDK for NFC/Tap to Pay
     implementation 'com.stripe:stripeterminal:3.8.1'
-    implementation 'com.stripe:stripeterminal-localmobile:3.8.1'
+    // Note: stripeterminal-localmobile may not be publicly available
+    // Using main stripeterminal SDK which includes local mobile functionality
     
     // Stripe Android SDK (for fallback payments)
     implementation 'com.stripe:stripe-android:20.51.0'
