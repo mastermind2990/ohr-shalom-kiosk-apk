@@ -553,8 +553,12 @@ class OhrShalomKiosk {
         try {
             console.log('Loading Hebrew calendar...')
             
-            // Always use web API for reliable data loading
-            await this.loadHebrewCalendarFromWeb()
+            // Load both current Hebrew date and Shabbat times
+            await Promise.all([
+                this.loadCurrentHebrewDate(),
+                this.loadShabbatTimes(),
+                this.loadZmanim()
+            ])
             
             // Also trigger Android background loading for future caching
             if (window.AndroidInterface && window.AndroidInterface.getHebrewCalendar) {
@@ -567,16 +571,15 @@ class OhrShalomKiosk {
         }
     }
     
-    async loadHebrewCalendarFromWeb() {
+    async loadCurrentHebrewDate() {
         try {
-            // Use Davenport, FL coordinates by default (geoname seems to have issues)
-            const latitude = this.config.latitude || 28.1611
-            const longitude = this.config.longitude || -81.6029
+            const today = new Date()
+            const year = today.getFullYear()
+            const month = today.getMonth() + 1
+            const day = today.getDate()
             
-            // Always use coordinates as they seem more reliable
-            const url = `https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${latitude}&longitude=${longitude}`
-            
-            console.log('Hebrew calendar API URL:', url)
+            const url = `https://www.hebcal.com/converter?cfg=json&gy=${year}&gm=${month}&gd=${day}&g2h=1`
+            console.log('Loading current Hebrew date from:', url)
             
             const response = await fetch(url)
             if (!response.ok) {
@@ -584,25 +587,98 @@ class OhrShalomKiosk {
             }
             
             const data = await response.json()
-            console.log('Hebrew calendar API response:', data)
+            console.log('Hebrew date API response:', data)
+            
+            const hebrewDateEl = document.getElementById('hebrewDate')
+            if (hebrewDateEl) {
+                if (data && data.hebrew) {
+                    hebrewDateEl.textContent = data.hebrew
+                    console.log('Set current Hebrew date:', data.hebrew)
+                } else if (data && data.hd) {
+                    // Alternative field name for Hebrew date
+                    hebrewDateEl.textContent = data.hd
+                    console.log('Set current Hebrew date (hd):', data.hd)
+                } else {
+                    console.warn('No Hebrew date found in response:', data)
+                    hebrewDateEl.textContent = 'Hebrew date unavailable'
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load current Hebrew date:', error)
+            const hebrewDateEl = document.getElementById('hebrewDate')
+            if (hebrewDateEl) hebrewDateEl.textContent = 'Unavailable'
+        }
+    }
+    
+    async loadShabbatTimes() {
+        try {
+            // Use Davenport, FL coordinates
+            const latitude = this.config.latitude || 28.1611
+            const longitude = this.config.longitude || -81.6029
+            
+            const url = `https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${latitude}&longitude=${longitude}`
+            console.log('Loading Shabbat times from:', url)
+            
+            const response = await fetch(url)
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+            }
+            
+            const data = await response.json()
+            console.log('Shabbat times API response:', data)
             
             // Validate the response structure
             if (!data || !data.items || !Array.isArray(data.items)) {
                 throw new Error('Invalid API response structure')
             }
             
-            if (data.items.length === 0) {
-                throw new Error('No items returned from HebCal API')
+            this.displayShabbatTimes(data)
+        } catch (error) {
+            console.error('Failed to load Shabbat times:', error)
+            this.setShabbatErrorStates()
+        }
+    }
+    
+    async loadZmanim() {
+        try {
+            const latitude = this.config.latitude || 28.1611
+            const longitude = this.config.longitude || -81.6029
+            
+            const today = new Date()
+            const year = today.getFullYear()
+            const month = today.getMonth() + 1
+            const day = today.getDate()
+            
+            const url = `https://www.hebcal.com/zmanim?cfg=json&latitude=${latitude}&longitude=${longitude}&date=${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+            console.log('Loading Zmanim from:', url)
+            
+            const response = await fetch(url)
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`)
             }
             
-            this.displayHebrewCalendar(data)
+            const data = await response.json()
+            console.log('Zmanim API response:', data)
+            
+            this.displayZmanim(data)
         } catch (error) {
-            console.error('Failed to load Hebrew calendar from web:', error)
-            this.setCalendarErrorStates()
+            console.error('Failed to load Zmanim:', error)
+            // Don't show error for Zmanim as they're secondary data
         }
     }
     
     setCalendarErrorStates() {
+        // Set fallback Hebrew date and parsha
+        const hebrewDateEl = document.getElementById('hebrewDate')
+        if (hebrewDateEl) hebrewDateEl.textContent = 'Unavailable'
+        
+        const parshaEl = document.getElementById('parsha')
+        if (parshaEl) parshaEl.textContent = 'Unavailable'
+        
+        this.setShabbatErrorStates()
+    }
+    
+    setShabbatErrorStates() {
         // Set fallback error text for all Shabbat time elements
         const sabbatElements = ['candleLighting', 'eighteenMin', 'havdalah', 'seventytwoMin']
         sabbatElements.forEach(elementId => {
@@ -611,22 +687,15 @@ class OhrShalomKiosk {
                 element.textContent = 'Unavailable'
             }
         })
-        
-        // Also set fallback Hebrew date and parsha
-        const hebrewDateEl = document.getElementById('hebrewDate')
-        if (hebrewDateEl) hebrewDateEl.textContent = 'Unavailable'
-        
-        const parshaEl = document.getElementById('parsha')
-        if (parshaEl) parshaEl.textContent = 'Unavailable'
     }
     
-    displayHebrewCalendar(data) {
-        console.log('Displaying Hebrew calendar data:', data)
+    displayShabbatTimes(data) {
+        console.log('Displaying Shabbat times data:', data)
         const items = data.items || []
         
         if (!items.length) {
-            console.error('No items in Hebrew calendar data')
-            this.setCalendarErrorStates()
+            console.error('No items in Shabbat times data')
+            this.setShabbatErrorStates()
             return
         }
         
@@ -635,15 +704,6 @@ class OhrShalomKiosk {
         console.log('Found parsha:', parsha)
         
         if (parsha) {
-            // Display Hebrew date from parsha
-            if (parsha.hdate) {
-                const hebrewDateEl = document.getElementById('hebrewDate')
-                if (hebrewDateEl) {
-                    hebrewDateEl.textContent = parsha.hdate
-                    console.log('Set Hebrew date:', parsha.hdate)
-                }
-            }
-            
             // Display parsha name - prefer Hebrew, fallback to English
             const parshaEl = document.getElementById('parsha')
             if (parshaEl) {
@@ -652,9 +712,7 @@ class OhrShalomKiosk {
                 console.log('Set parsha:', parshaText)
             }
         } else {
-            console.error('No parsha found in API response')
-            const hebrewDateEl = document.getElementById('hebrewDate')
-            if (hebrewDateEl) hebrewDateEl.textContent = 'No Hebrew Date'
+            console.warn('No parsha found in API response')
             const parshaEl = document.getElementById('parsha')
             if (parshaEl) parshaEl.textContent = 'No Parsha'
         }
@@ -697,6 +755,78 @@ class OhrShalomKiosk {
         
         // Calculate 18 min and 72 min times based on candle lighting and Havdalah
         this.calculateSabbathTimes(candles, havdalah)
+    }
+    
+    displayZmanim(data) {
+        console.log('Displaying Zmanim data:', data)
+        
+        if (!data || !data.times) {
+            console.warn('No Zmanim times available')
+            return
+        }
+        
+        // Update sunrise and sunset using IDs
+        const sunriseEl = document.getElementById('sunriseTime')
+        const sunsetEl = document.getElementById('sunsetTime')
+        const shemaEl = document.getElementById('shemaTime')
+        const tefillahEl = document.getElementById('tefillahTime')
+        const chatzosEl = document.getElementById('chatzosTime')
+        const minchaKetanaEl = document.getElementById('minchaKetanaTime')
+        
+        if (data.times.sunrise && sunriseEl) {
+            const sunriseTime = this.formatTime(new Date(data.times.sunrise))
+            sunriseEl.textContent = sunriseTime
+            console.log('Set sunrise:', sunriseTime)
+        }
+        
+        if (data.times.sunset && sunsetEl) {
+            const sunsetTime = this.formatTime(new Date(data.times.sunset))
+            sunsetEl.textContent = sunsetTime
+            console.log('Set sunset:', sunsetTime)
+        }
+        
+        // Update other Zmanim if available
+        if (data.times.sofZmanShmaMGA && shemaEl) {
+            const shemaTime = this.formatTime(new Date(data.times.sofZmanShmaMGA))
+            shemaEl.textContent = shemaTime
+            console.log('Set Shema time:', shemaTime)
+        }
+        
+        if (data.times.sofZmanTfillaMGA && tefillahEl) {
+            const tefillahTime = this.formatTime(new Date(data.times.sofZmanTfillaMGA))
+            tefillahEl.textContent = tefillahTime
+            console.log('Set Tefillah time:', tefillahTime)
+        }
+        
+        if (data.times.chatzot && chatzosEl) {
+            const chatzosTime = this.formatTime(new Date(data.times.chatzot))
+            chatzosEl.textContent = chatzosTime
+            console.log('Set Chatzos time:', chatzosTime)
+        }
+        
+        if (data.times.minchaKetana && minchaKetanaEl) {
+            const minchaKetanaTime = this.formatTime(new Date(data.times.minchaKetana))
+            minchaKetanaEl.textContent = minchaKetanaTime
+            console.log('Set Mincha Ketana time:', minchaKetanaTime)
+        }
+    }
+    
+    formatTime(date) {
+        if (!date || isNaN(date)) return 'N/A'
+        
+        let hours = date.getHours()
+        const minutes = date.getMinutes()
+        const ampm = hours >= 12 ? 'PM' : 'AM'
+        hours = hours % 12
+        hours = hours ? hours : 12 // 0 should be 12
+        const minutesStr = minutes < 10 ? '0' + minutes : minutes
+        return `${hours}:${minutesStr} ${ampm}`
+    }
+    
+    // For Android bridge compatibility - delegates to new methods
+    displayHebrewCalendar(data) {
+        console.log('Android bridge: displayHebrewCalendar called with:', data)
+        this.displayShabbatTimes(data)
     }
     
     calculateSabbathTimes(candles, havdalah) {

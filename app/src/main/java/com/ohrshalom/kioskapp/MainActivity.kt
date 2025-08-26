@@ -425,8 +425,9 @@ class MainActivity : AppCompatActivity() {
                         
                         // Update WebView with calendar data (properly escaped JSON)
                         runOnUiThread {
-                            val escapedJson = calendarData.replace("'", "\\'").replace("\n", "\\n")
-                            val script = "if (window.kioskInstance && window.kioskInstance.displayHebrewCalendar) { window.kioskInstance.displayHebrewCalendar($escapedJson); }"
+                            // Use Gson to properly escape JSON data
+                            val escapedJsonString = gson.toJson(calendarData)
+                            val script = "if (window.kioskInstance && window.kioskInstance.displayHebrewCalendar) { window.kioskInstance.displayHebrewCalendar(JSON.parse($escapedJsonString)); }"
                             binding.webView.evaluateJavascript(script, null)
                         }
                     } else {
