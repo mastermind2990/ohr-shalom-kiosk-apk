@@ -437,7 +437,7 @@ class MainActivity : AppCompatActivity() {
                     Coordinates: ${config.latitude}, ${config.longitude}
                     Organization: ${config.organizationName}
                     
-                    Kiosk Mode: ${if (isKioskMode) "ENABLED" else "DISABLED"}
+                    Kiosk Mode: ${if (isKioskModeEnabled) "ENABLED" else "DISABLED"}
                     
                     Prayer Times:
                     Shacharit: ${config.shacharit}
@@ -450,7 +450,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                 
                 // Temporarily disable kiosk mode to allow configuration
-                if (isKioskMode) {
+                if (isKioskModeEnabled) {
                     disableKioskMode()
                     // Re-enable after 30 seconds
                     binding.webView.postDelayed({
