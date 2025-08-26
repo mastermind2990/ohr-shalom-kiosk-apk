@@ -549,8 +549,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         // Ensure we stay in kiosk mode when launched via intent
         if (isKioskModeEnabled) {
             Log.d(TAG, "New intent received - maintaining kiosk mode")
