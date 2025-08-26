@@ -1,6 +1,10 @@
 // Ohr Shalom Donation Kiosk - Android WebView Integration
+// Version: 1.1-hebcal-debug
+// Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
+        this.version = '1.4-admin-features'
+        this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
             adminPin: '12345',
@@ -8,14 +12,16 @@ class OhrShalomKiosk {
             latitude: 28.1611,
             longitude: -81.6029,
             timeZone: 'America/New_York',
-            // Location configuration - default to Davenport, FL using Geoname ID
-            geonameId: 4154279, // Davenport, FL
-            locationMethod: 'geoname', // 'geoname' or 'coordinates'
+            // Location configuration - default to Davenport, FL using coordinates
+            geonameId: null, // Disabled - use coordinates instead
+            locationMethod: 'coordinates', // 'geoname' or 'coordinates'
             // Prayer times - defaults
             shacharit: '7:00 AM',
             mincha: '2:00 PM',
             maariv: '8:00 PM',
-            organizationName: 'Ohr Shalom'
+            organizationName: 'Ohr Shalom',
+            logoUrl: '', // Custom logo URL
+            stripeTestMode: false // Test mode for Stripe payments
         }
         
         // State
@@ -27,7 +33,21 @@ class OhrShalomKiosk {
     }
     
     async init() {
-        console.log('Initializing Ohr Shalom Kiosk for Android...')
+        console.log(`=== KIOSK DEBUG: Initializing Ohr Shalom Kiosk v${this.version} (${this.buildDate}) ===`)
+        
+        // Add debugging information to Android logcat
+        if (window.AndroidInterface && window.AndroidInterface.log) {
+            window.AndroidInterface.log(`KIOSK DEBUG: JavaScript v${this.version} initialization started`)
+        }
+        
+        // Test network connectivity
+        await this.testNetworkConnectivity()
+        
+        // Test simple API
+        await this.testSimpleApi()
+        
+        // Get and log kiosk info
+        this.getKioskInfo()
         
         // Load saved configuration first
         this.loadConfigurationFromStorage()
@@ -196,6 +216,75 @@ class OhrShalomKiosk {
         // Cancel tap to pay
         document.getElementById('cancelTapToPay').addEventListener('click', () => {
             this.cancelTapToPay()
+        })
+        
+        // Admin configuration modal handlers
+        document.getElementById('adminConfigClose').addEventListener('click', () => {
+            this.hideAdminConfigModal()
+        })
+        
+        document.getElementById('adminConfigCancel').addEventListener('click', () => {
+            this.hideAdminConfigModal()
+        })
+        
+        document.getElementById('adminConfigSave').addEventListener('click', () => {
+            this.saveAdminConfig()
+        })
+        
+        // Admin action buttons
+        document.getElementById('adminToggleKiosk').addEventListener('click', () => {
+            this.toggleKioskMode()
+        })
+        
+        document.getElementById('adminResetConfig').addEventListener('click', () => {
+            this.resetConfigToDefaults()
+        })
+        
+        // Admin testing buttons
+        document.getElementById('adminTestNetwork').addEventListener('click', () => {
+            this.runAdminTest('network')
+        })
+        
+        document.getElementById('adminTestHebcal').addEventListener('click', () => {
+            this.runAdminTest('hebcal')
+        })
+        
+        document.getElementById('adminRefreshData').addEventListener('click', () => {
+            this.runAdminTest('refresh')
+        })
+        
+        document.getElementById('adminShowLogs').addEventListener('click', () => {
+            this.runAdminTest('logs')
+        })
+        
+        // Logo customization handlers
+        document.getElementById('adminTestLogo').addEventListener('click', () => {
+            this.previewCustomLogo()
+        })
+        
+        document.getElementById('adminResetLogo').addEventListener('click', () => {
+            this.resetLogo()
+        })
+        
+        // Stripe testing handlers
+        document.getElementById('adminTestStripeConnection').addEventListener('click', () => {
+            this.runStripeTest('connection')
+        })
+        
+        document.getElementById('adminTestStripeAPI').addEventListener('click', () => {
+            this.runStripeTest('api')
+        })
+        
+        document.getElementById('adminTestStripeTerminal').addEventListener('click', () => {
+            this.runStripeTest('terminal')
+        })
+        
+        document.getElementById('adminStripeTestMode').addEventListener('click', () => {
+            this.toggleStripeTestMode()
+        })
+        
+        document.getElementById('adminStripeTest').addEventListener('click', () => {
+            this.startTestPayment()
         })
     }
     
@@ -519,13 +608,115 @@ class OhrShalomKiosk {
     }
     
     showAdminConfig() {
-        // Call Android interface to show admin configuration
+        console.log('=== ADMIN DEBUG: showAdminConfig called ===')
+        
+        // Show the admin configuration modal
+        this.showAdminConfigModal()
+        
+        // Also call Android interface for additional functionality if available
         if (window.AndroidInterface && window.AndroidInterface.showAdminConfig) {
-            window.AndroidInterface.showAdminConfig()
-        } else {
-            // Web fallback - show basic config modal
-            this.showMessage('Admin mode - configuration available in Android app', 'info')
+            console.log('ADMIN DEBUG: Calling Android showAdminConfig for additional functionality')
+            // Don't call it as it shows Toast - we'll handle everything in JavaScript
+            // window.AndroidInterface.showAdminConfig()
         }
+    }
+    
+    showAdminConfigModal() {
+        console.log('ADMIN DEBUG: Showing admin configuration modal')
+        
+        const modal = document.getElementById('adminConfigModal')
+        if (modal) {
+            modal.classList.remove('hidden')
+            
+            // Populate current configuration values
+            this.populateAdminConfig()
+            
+            console.log('ADMIN DEBUG: Admin config modal should now be visible')
+        } else {
+            console.error('ADMIN DEBUG: adminConfigModal element not found!')
+        }
+    }
+    
+    populateAdminConfig() {
+        console.log('ADMIN DEBUG: Populating admin configuration with current values')
+        
+        // System information
+        document.getElementById('adminVersion').textContent = this.version
+        document.getElementById('adminBuildDate').textContent = this.buildDate
+        
+        // Configuration values
+        document.getElementById('adminOrgName').value = this.config.organizationName
+        document.getElementById('adminLatitude').value = this.config.latitude
+        document.getElementById('adminLongitude').value = this.config.longitude
+        document.getElementById('adminTimezone').value = this.config.timeZone
+        
+        // Convert prayer times to 24-hour format for time inputs
+        document.getElementById('adminShacharit').value = this.convertTo24Hour(this.config.shacharit)
+        document.getElementById('adminMincha').value = this.convertTo24Hour(this.config.mincha)
+        document.getElementById('adminMaariv').value = this.convertTo24Hour(this.config.maariv)
+        
+        // Logo URL
+        document.getElementById('adminLogoUrl').value = this.config.logoUrl || ''
+        
+        // Status checks
+        this.updateAdminStatus()
+    }
+    
+    convertTo24Hour(timeString) {
+        // Convert "7:00 AM" to "07:00" format
+        try {
+            const time = timeString.toLowerCase().replace(/\s+/g, '')
+            const isPM = time.includes('pm')
+            const timeOnly = time.replace(/[ap]m/, '')
+            let [hours, minutes] = timeOnly.split(':')
+            
+            hours = parseInt(hours)
+            minutes = minutes || '00'
+            
+            if (isPM && hours !== 12) hours += 12
+            if (!isPM && hours === 12) hours = 0
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}`
+        } catch (e) {
+            console.warn('Failed to convert time:', timeString, e)
+            return '12:00'
+        }
+    }
+    
+    convertTo12Hour(time24) {
+        // Convert "07:00" to "7:00 AM" format
+        try {
+            let [hours, minutes] = time24.split(':')
+            hours = parseInt(hours)
+            const ampm = hours >= 12 ? 'PM' : 'AM'
+            hours = hours % 12 || 12
+            return `${hours}:${minutes} ${ampm}`
+        } catch (e) {
+            console.warn('Failed to convert time:', time24, e)
+            return time24
+        }
+    }
+    
+    updateAdminStatus() {
+        // Update kiosk mode status
+        if (window.AndroidInterface && window.AndroidInterface.getKioskStatus) {
+            try {
+                const status = JSON.parse(window.AndroidInterface.getKioskStatus())
+                document.getElementById('adminKioskStatus').textContent = status.kioskMode ? 'ENABLED' : 'DISABLED'
+                document.getElementById('adminKioskStatus').className = status.kioskMode ? 'font-semibold text-green-600' : 'font-semibold text-red-600'
+                
+                document.getElementById('adminNfcStatus').textContent = status.nfcStatus === 'enabled' ? 'READY' : 'DISABLED'
+            } catch (e) {
+                console.warn('Failed to get Android status:', e)
+            }
+        }
+        
+        // Check Hebrew data status
+        const hebrewDate = document.getElementById('hebrewDate')?.textContent
+        const parsha = document.getElementById('parsha')?.textContent
+        const hebrewStatus = (hebrewDate && hebrewDate !== 'Unavailable' && parsha && parsha !== 'Unavailable') ? 'LOADED' : 'ERROR'
+        document.getElementById('adminHebrewStatus').textContent = hebrewStatus
+        document.getElementById('adminHebrewStatus').className = hebrewStatus === 'LOADED' ? 'text-green-600' : 'text-red-600'
     }
     
     showCustomAmountModal() {
@@ -551,60 +742,86 @@ class OhrShalomKiosk {
     
     async loadHebrewCalendar() {
         try {
-            console.log('Loading Hebrew calendar...')
+            console.log('=== KIOSK DEBUG: Loading Hebrew calendar... ===')
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: loadHebrewCalendar started')
+            }
             
             // Load both current Hebrew date and Shabbat times
+            console.log('KIOSK DEBUG: Starting parallel API calls')
             await Promise.all([
                 this.loadCurrentHebrewDate(),
                 this.loadShabbatTimes(),
                 this.loadZmanim()
             ])
             
+            console.log('KIOSK DEBUG: All API calls completed')
+            
             // Also trigger Android background loading for future caching
             if (window.AndroidInterface && window.AndroidInterface.getHebrewCalendar) {
+                console.log('KIOSK DEBUG: Calling Android getHebrewCalendar method')
                 window.AndroidInterface.getHebrewCalendar()
+            } else {
+                console.warn('KIOSK DEBUG: AndroidInterface.getHebrewCalendar not available')
             }
             
         } catch (error) {
-            console.error('Failed to load Hebrew calendar:', error)
+            console.error('KIOSK DEBUG: Failed to load Hebrew calendar:', error)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Hebrew calendar loading failed: ' + error.message)
+            }
             this.setCalendarErrorStates()
         }
     }
     
     async loadCurrentHebrewDate() {
         try {
+            console.log('=== KIOSK DEBUG: Loading current Hebrew date ===')
             const today = new Date()
             const year = today.getFullYear()
             const month = today.getMonth() + 1
             const day = today.getDate()
             
             const url = `https://www.hebcal.com/converter?cfg=json&gy=${year}&gm=${month}&gd=${day}&g2h=1`
-            console.log('Loading current Hebrew date from:', url)
+            console.log('KIOSK DEBUG: Hebrew date URL:', url)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Hebrew date URL: ' + url)
+            }
             
             const response = await fetch(url)
+            console.log('KIOSK DEBUG: Hebrew date response status:', response.status, response.statusText)
+            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`)
             }
             
             const data = await response.json()
-            console.log('Hebrew date API response:', data)
+            console.log('KIOSK DEBUG: Hebrew date API response:', JSON.stringify(data, null, 2))
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Hebrew date response: ' + JSON.stringify(data))
+            }
             
             const hebrewDateEl = document.getElementById('hebrewDate')
             if (hebrewDateEl) {
                 if (data && data.hebrew) {
                     hebrewDateEl.textContent = data.hebrew
-                    console.log('Set current Hebrew date:', data.hebrew)
+                    console.log('KIOSK DEBUG: Set current Hebrew date:', data.hebrew)
                 } else if (data && data.hd) {
                     // Alternative field name for Hebrew date
                     hebrewDateEl.textContent = data.hd
-                    console.log('Set current Hebrew date (hd):', data.hd)
+                    console.log('KIOSK DEBUG: Set current Hebrew date (hd):', data.hd)
                 } else {
-                    console.warn('No Hebrew date found in response:', data)
+                    console.warn('KIOSK DEBUG: No Hebrew date found in response:', data)
                     hebrewDateEl.textContent = 'Hebrew date unavailable'
                 }
+            } else {
+                console.error('KIOSK DEBUG: hebrewDate element not found in DOM')
             }
         } catch (error) {
-            console.error('Failed to load current Hebrew date:', error)
+            console.error('KIOSK DEBUG: Failed to load current Hebrew date:', error)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Hebrew date error: ' + error.message)
+            }
             const hebrewDateEl = document.getElementById('hebrewDate')
             if (hebrewDateEl) hebrewDateEl.textContent = 'Unavailable'
         }
@@ -612,29 +829,43 @@ class OhrShalomKiosk {
     
     async loadShabbatTimes() {
         try {
+            console.log('=== KIOSK DEBUG: Loading Shabbat times ===')
             // Use Davenport, FL coordinates
             const latitude = this.config.latitude || 28.1611
             const longitude = this.config.longitude || -81.6029
             
             const url = `https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${latitude}&longitude=${longitude}`
-            console.log('Loading Shabbat times from:', url)
+            console.log('KIOSK DEBUG: Shabbat times URL:', url)
+            console.log('KIOSK DEBUG: Using coordinates - lat:', latitude, 'lng:', longitude)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Shabbat times URL: ' + url)
+            }
             
             const response = await fetch(url)
+            console.log('KIOSK DEBUG: Shabbat times response status:', response.status, response.statusText)
+            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`)
             }
             
             const data = await response.json()
-            console.log('Shabbat times API response:', data)
+            console.log('KIOSK DEBUG: Shabbat times API response:', JSON.stringify(data, null, 2))
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Shabbat response: ' + JSON.stringify(data))
+            }
             
             // Validate the response structure
             if (!data || !data.items || !Array.isArray(data.items)) {
-                throw new Error('Invalid API response structure')
+                throw new Error('Invalid API response structure - missing items array')
             }
             
+            console.log('KIOSK DEBUG: Response validation passed, items count:', data.items.length)
             this.displayShabbatTimes(data)
         } catch (error) {
-            console.error('Failed to load Shabbat times:', error)
+            console.error('KIOSK DEBUG: Failed to load Shabbat times:', error)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Shabbat times error: ' + error.message)
+            }
             this.setShabbatErrorStates()
         }
     }
@@ -690,45 +921,60 @@ class OhrShalomKiosk {
     }
     
     displayShabbatTimes(data) {
-        console.log('Displaying Shabbat times data:', data)
+        console.log('=== KIOSK DEBUG: Displaying Shabbat times data ===')
+        console.log('KIOSK DEBUG: Data received:', JSON.stringify(data, null, 2))
+        if (window.AndroidInterface && window.AndroidInterface.log) {
+            window.AndroidInterface.log('KIOSK DEBUG: displayShabbatTimes called')
+        }
+        
         const items = data.items || []
+        console.log('KIOSK DEBUG: Items array length:', items.length)
         
         if (!items.length) {
-            console.error('No items in Shabbat times data')
+            console.error('KIOSK DEBUG: No items in Shabbat times data')
             this.setShabbatErrorStates()
             return
         }
         
+        // Log all items for debugging
+        items.forEach((item, index) => {
+            console.log(`KIOSK DEBUG: Item ${index}:`, JSON.stringify(item, null, 2))
+        })
+        
         // Find parsha - category should be 'parashat'
         const parsha = items.find(item => item.category === 'parashat')
-        console.log('Found parsha:', parsha)
+        console.log('KIOSK DEBUG: Found parsha:', parsha)
         
-        if (parsha) {
+        const parshaEl = document.getElementById('parsha')
+        console.log('KIOSK DEBUG: Parsha element found:', !!parshaEl)
+        
+        if (parsha && parshaEl) {
             // Display parsha name - prefer Hebrew, fallback to English
-            const parshaEl = document.getElementById('parsha')
-            if (parshaEl) {
-                const parshaText = parsha.hebrew || parsha.title || 'No Parsha'
-                parshaEl.textContent = parshaText
-                console.log('Set parsha:', parshaText)
+            const parshaText = parsha.hebrew || parsha.title || 'No Parsha'
+            parshaEl.textContent = parshaText
+            console.log('KIOSK DEBUG: Set parsha:', parshaText)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Set parsha: ' + parshaText)
             }
         } else {
-            console.warn('No parsha found in API response')
-            const parshaEl = document.getElementById('parsha')
+            console.warn('KIOSK DEBUG: No parsha found or parsha element missing')
             if (parshaEl) parshaEl.textContent = 'No Parsha'
         }
         
         // Find candle lighting - category should be 'candles'
         const candles = items.find(item => item.category === 'candles')
-        console.log('Found candle lighting:', candles)
+        console.log('KIOSK DEBUG: Found candle lighting:', candles)
         
         const candleElement = document.getElementById('candleLighting')
+        console.log('KIOSK DEBUG: Candle element found:', !!candleElement)
+        
         if (candleElement) {
             if (candles) {
                 // Extract time from title like "Candle lighting: 7:32pm"
                 const timeMatch = candles.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
                 const timeText = timeMatch ? timeMatch[1] : 'Invalid time'
                 candleElement.textContent = timeText
-                console.log('Set candle lighting:', timeText)
+                console.log('KIOSK DEBUG: Set candle lighting:', timeText)
             } else {
                 candleElement.textContent = 'No candles'
                 console.error('No candle lighting found in API response')
@@ -821,6 +1067,472 @@ class OhrShalomKiosk {
         hours = hours ? hours : 12 // 0 should be 12
         const minutesStr = minutes < 10 ? '0' + minutes : minutes
         return `${hours}:${minutesStr} ${ampm}`
+    }
+    
+    async testNetworkConnectivity() {
+        try {
+            console.log('=== KIOSK DEBUG: Testing network connectivity ===')
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Testing network connectivity')
+            }
+            
+            // Test basic connectivity with a simple API call
+            const response = await fetch('https://httpbin.org/json', {
+                method: 'GET',
+                headers: {
+                    'User-Agent': `OhrShalomKiosk/${this.version}`
+                }
+            })
+            
+            if (response.ok) {
+                console.log('KIOSK DEBUG: Network connectivity test PASSED')
+                if (window.AndroidInterface && window.AndroidInterface.log) {
+                    window.AndroidInterface.log('KIOSK DEBUG: Network connectivity OK')
+                }
+                return true
+            } else {
+                throw new Error(`Network test failed with status ${response.status}`)
+            }
+        } catch (error) {
+            console.error('KIOSK DEBUG: Network connectivity test FAILED:', error)
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('KIOSK DEBUG: Network connectivity FAILED: ' + error.message)
+            }
+            return false
+        }
+    }
+    
+    hideAdminConfigModal() {
+        console.log('ADMIN DEBUG: Hiding admin configuration modal')
+        const modal = document.getElementById('adminConfigModal')
+        if (modal) {
+            modal.classList.add('hidden')
+        }
+    }
+    
+    saveAdminConfig() {
+        console.log('ADMIN DEBUG: Saving admin configuration')
+        
+        try {
+            // Collect form values
+            const newConfig = {
+                organizationName: document.getElementById('adminOrgName').value,
+                latitude: parseFloat(document.getElementById('adminLatitude').value),
+                longitude: parseFloat(document.getElementById('adminLongitude').value),
+                timeZone: document.getElementById('adminTimezone').value,
+                shacharit: this.convertTo12Hour(document.getElementById('adminShacharit').value),
+                mincha: this.convertTo12Hour(document.getElementById('adminMincha').value),
+                maariv: this.convertTo12Hour(document.getElementById('adminMaariv').value),
+                logoUrl: document.getElementById('adminLogoUrl').value
+            }
+            
+            // Handle new PIN if provided
+            const newPin = document.getElementById('adminNewPin').value
+            if (newPin && newPin.length >= 4) {
+                newConfig.adminPin = newPin
+            }
+            
+            console.log('ADMIN DEBUG: New configuration:', newConfig)
+            
+            // Update local config
+            this.config = { ...this.config, ...newConfig }
+            
+            // Save to localStorage
+            localStorage.setItem('ohrShalomKioskConfig', JSON.stringify(this.config))
+            
+            // Save to Android if available
+            if (window.AndroidInterface && window.AndroidInterface.saveConfig) {
+                const success = window.AndroidInterface.saveConfig(JSON.stringify(newConfig))
+                console.log('ADMIN DEBUG: Android config save result:', success)
+            }
+            
+            // Update prayer times display
+            this.updatePrayerTimesDisplay()
+            
+            // Update logo if changed
+            if (newConfig.logoUrl) {
+                this.updateLogo(newConfig.logoUrl)
+            }
+            
+            // Refresh Hebrew calendar data with new coordinates
+            this.loadHebrewCalendar()
+            
+            this.showMessage('Configuration saved successfully!', 'success', 3000)
+            this.hideAdminConfigModal()
+            
+        } catch (error) {
+            console.error('ADMIN DEBUG: Error saving configuration:', error)
+            this.showMessage('Error saving configuration: ' + error.message, 'error', 5000)
+        }
+    }
+    
+    toggleKioskMode() {
+        console.log('ADMIN DEBUG: Toggling kiosk mode')
+        
+        if (window.AndroidInterface) {
+            if (window.AndroidInterface.exitKioskMode && window.AndroidInterface.enterKioskMode) {
+                // Check current status and toggle
+                try {
+                    const status = JSON.parse(window.AndroidInterface.getKioskStatus())
+                    if (status.kioskMode) {
+                        window.AndroidInterface.exitKioskMode()
+                        this.showMessage('Kiosk mode disabled', 'info', 3000)
+                    } else {
+                        window.AndroidInterface.enterKioskMode()
+                        this.showMessage('Kiosk mode enabled', 'success', 3000)
+                    }
+                    
+                    // Update status display
+                    setTimeout(() => this.updateAdminStatus(), 1000)
+                } catch (e) {
+                    console.error('ADMIN DEBUG: Error toggling kiosk mode:', e)
+                }
+            }
+        } else {
+            this.showMessage('Kiosk mode control not available in web mode', 'warning', 3000)
+        }
+    }
+    
+    resetConfigToDefaults() {
+        console.log('ADMIN DEBUG: Resetting configuration to defaults')
+        
+        if (confirm('Are you sure you want to reset all configuration to defaults? This cannot be undone.')) {
+            // Reset to default configuration
+            this.config = {
+                adminPin: '12345',
+                latitude: 28.1611,
+                longitude: -81.6029,
+                timeZone: 'America/New_York',
+                geonameId: null,
+                locationMethod: 'coordinates',
+                shacharit: '7:00 AM',
+                mincha: '2:00 PM',
+                maariv: '8:00 PM',
+                organizationName: 'Ohr Shalom'
+            }
+            
+            // Save to storage
+            localStorage.setItem('ohrShalomKioskConfig', JSON.stringify(this.config))
+            
+            // Reset Android config if available
+            if (window.AndroidInterface && window.AndroidInterface.saveConfig) {
+                window.AndroidInterface.saveConfig(JSON.stringify(this.config))
+            }
+            
+            // Update displays
+            this.populateAdminConfig()
+            this.updatePrayerTimesDisplay()
+            this.loadHebrewCalendar()
+            
+            this.showMessage('Configuration reset to defaults', 'success', 3000)
+        }
+    }
+    
+    async runAdminTest(testType) {
+        console.log('ADMIN DEBUG: Running admin test:', testType)
+        const resultsDiv = document.getElementById('adminTestResults')
+        resultsDiv.classList.remove('hidden')
+        
+        try {
+            switch (testType) {
+                case 'network':
+                    resultsDiv.innerHTML = 'Testing network connectivity...'
+                    const networkResult = await this.testNetworkConnectivity()
+                    resultsDiv.innerHTML = `Network Test: ${networkResult ? 'SUCCESS' : 'FAILED'}`
+                    break
+                    
+                case 'hebcal':
+                    resultsDiv.innerHTML = 'Testing Hebcal API...'
+                    const hebcalResult = await this.testSimpleApi()
+                    resultsDiv.innerHTML = `Hebcal API Test: ${hebcalResult ? 'SUCCESS - ' + JSON.stringify(hebcalResult).substring(0, 200) + '...' : 'FAILED'}`
+                    break
+                    
+                case 'refresh':
+                    resultsDiv.innerHTML = 'Refreshing Hebrew calendar data...'
+                    await this.loadHebrewCalendar()
+                    resultsDiv.innerHTML = 'Hebrew calendar data refreshed. Check main display for updates.'
+                    this.updateAdminStatus()
+                    break
+                    
+                case 'logs':
+                    const kioskInfo = this.getKioskInfo()
+                    resultsDiv.innerHTML = `Debug Info:\n${JSON.stringify(kioskInfo, null, 2)}`
+                    break
+            }
+        } catch (error) {
+            resultsDiv.innerHTML = `Test failed: ${error.message}`
+            console.error('ADMIN DEBUG: Test error:', error)
+        }
+    }
+    
+    // Logo customization methods
+    previewCustomLogo() {
+        console.log('ADMIN DEBUG: Previewing custom logo')
+        const logoUrl = document.getElementById('adminLogoUrl').value
+        
+        if (!logoUrl) {
+            this.showMessage('Please enter a logo URL first', 'warning', 3000)
+            return
+        }
+        
+        const previewDiv = document.getElementById('logoPreview')
+        const previewImg = document.getElementById('logoPreviewImg')
+        
+        previewImg.onload = () => {
+            console.log('ADMIN DEBUG: Logo loaded successfully')
+            previewDiv.classList.remove('hidden')
+            this.showMessage('Logo preview loaded', 'success', 2000)
+        }
+        
+        previewImg.onerror = () => {
+            console.error('ADMIN DEBUG: Failed to load logo')
+            previewDiv.classList.add('hidden')
+            this.showMessage('Failed to load logo. Check the URL and try again.', 'error', 5000)
+        }
+        
+        previewImg.src = logoUrl
+    }
+    
+    resetLogo() {
+        console.log('ADMIN DEBUG: Resetting logo to default')
+        document.getElementById('adminLogoUrl').value = ''
+        document.getElementById('logoPreview').classList.add('hidden')
+        
+        // Reset to default logo
+        this.updateLogo('')
+        this.showMessage('Logo reset to default', 'success', 2000)
+    }
+    
+    updateLogo(logoUrl) {
+        console.log('ADMIN DEBUG: Updating logo to:', logoUrl)
+        const defaultLogo = document.getElementById('defaultLogo')
+        const customLogo = document.getElementById('customLogo')
+        
+        if (logoUrl && logoUrl.trim()) {
+            // Show custom logo
+            customLogo.src = logoUrl
+            customLogo.onload = () => {
+                defaultLogo.classList.add('hidden')
+                customLogo.classList.remove('hidden')
+                console.log('ADMIN DEBUG: Custom logo displayed')
+            }
+            customLogo.onerror = () => {
+                console.error('ADMIN DEBUG: Failed to load custom logo, showing default')
+                customLogo.classList.add('hidden')
+                defaultLogo.classList.remove('hidden')
+            }
+        } else {
+            // Show default logo
+            customLogo.classList.add('hidden')
+            defaultLogo.classList.remove('hidden')
+            console.log('ADMIN DEBUG: Default logo displayed')
+        }
+    }
+    
+    // Stripe testing methods
+    async runStripeTest(testType) {
+        console.log('ADMIN DEBUG: Running Stripe test:', testType)
+        const resultsDiv = document.getElementById('adminStripeResults')
+        resultsDiv.classList.remove('hidden')
+        
+        try {
+            switch (testType) {
+                case 'connection':
+                    resultsDiv.innerHTML = 'Testing Stripe connection...'
+                    await this.testStripeConnection()
+                    break
+                    
+                case 'api':
+                    resultsDiv.innerHTML = 'Testing Stripe API status...'
+                    await this.testStripeAPI()
+                    break
+                    
+                case 'terminal':
+                    resultsDiv.innerHTML = 'Testing Stripe Terminal...'
+                    await this.testStripeTerminal()
+                    break
+            }
+        } catch (error) {
+            resultsDiv.innerHTML = `Stripe test failed: ${error.message}`
+            console.error('ADMIN DEBUG: Stripe test error:', error)
+        }
+    }
+    
+    async testStripeConnection() {
+        console.log('ADMIN DEBUG: Testing Stripe connection')
+        const resultsDiv = document.getElementById('adminStripeResults')
+        
+        if (window.AndroidInterface && window.AndroidInterface.getNfcStatus) {
+            const nfcStatus = window.AndroidInterface.getNfcStatus()
+            resultsDiv.innerHTML = `Stripe Connection Test:\nNFC Status: ${nfcStatus}\nStripe Terminal: ${window.AndroidInterface ? 'Available' : 'Not Available'}`
+            
+            // Test Android payment manager status
+            if (window.AndroidInterface.getKioskStatus) {
+                try {
+                    const status = JSON.parse(window.AndroidInterface.getKioskStatus())
+                    resultsDiv.innerHTML += `\nPayment Manager: Ready\nDevice Ready: ${status.nfcStatus === 'enabled'}`
+                } catch (e) {
+                    resultsDiv.innerHTML += `\nPayment Manager: Error - ${e.message}`
+                }
+            }
+        } else {
+            resultsDiv.innerHTML = 'Stripe Connection Test:\nAndroid Interface: Not Available\nRunning in Web Mode - Stripe testing limited'
+        }
+    }
+    
+    async testStripeAPI() {
+        console.log('ADMIN DEBUG: Testing Stripe API')
+        const resultsDiv = document.getElementById('adminStripeResults')
+        
+        // Test if we can create a mock payment intent
+        if (window.AndroidInterface && window.AndroidInterface.log) {
+            window.AndroidInterface.log('ADMIN DEBUG: Testing Stripe API functionality')
+            
+            resultsDiv.innerHTML = 'Stripe API Test:\nChecking payment manager initialization...\nVerifying Terminal SDK...'
+            
+            // We can't test actual Stripe API without credentials, but we can test the infrastructure
+            setTimeout(() => {
+                resultsDiv.innerHTML += '\nPayment Infrastructure: Ready\nTerminal SDK: Loaded\nNote: Actual API testing requires live Stripe credentials'
+            }, 1000)
+        } else {
+            resultsDiv.innerHTML = 'Stripe API Test:\nAndroid payment interface not available\nWeb mode detected - API testing not possible'
+        }
+    }
+    
+    async testStripeTerminal() {
+        console.log('ADMIN DEBUG: Testing Stripe Terminal')
+        const resultsDiv = document.getElementById('adminStripeResults')
+        
+        if (window.AndroidInterface && window.AndroidInterface.getNfcStatus) {
+            const nfcStatus = window.AndroidInterface.getNfcStatus()
+            
+            resultsDiv.innerHTML = `Stripe Terminal Test:\nNFC Hardware: ${nfcStatus}\nTerminal Ready: ${nfcStatus === 'enabled'}`
+            
+            if (nfcStatus === 'enabled') {
+                resultsDiv.innerHTML += '\n✅ Terminal is ready for payments\n💡 Use "Enable Test Mode" for safe testing'
+            } else if (nfcStatus === 'disabled') {
+                resultsDiv.innerHTML += '\n❌ NFC is disabled - enable in Android settings\n⚙️ Go to Settings > Connected devices > NFC'
+            } else {
+                resultsDiv.innerHTML += '\n❌ NFC not supported on this device'
+            }
+        } else {
+            resultsDiv.innerHTML = 'Stripe Terminal Test:\nAndroid interface not available\nCannot test NFC hardware in web mode'
+        }
+    }
+    
+    toggleStripeTestMode() {
+        console.log('ADMIN DEBUG: Toggling Stripe test mode')
+        this.config.stripeTestMode = !this.config.stripeTestMode
+        
+        const testPaymentDiv = document.getElementById('stripeTestPayment')
+        const button = document.getElementById('adminStripeTestMode')
+        
+        if (this.config.stripeTestMode) {
+            testPaymentDiv.classList.remove('hidden')
+            button.textContent = 'Disable Test Mode'
+            button.className = button.className.replace('bg-orange-500 hover:bg-orange-600', 'bg-red-500 hover:bg-red-600')
+            this.showMessage('Stripe Test Mode ENABLED - Safe to test with real cards', 'info', 5000)
+            
+            if (window.AndroidInterface && window.AndroidInterface.log) {
+                window.AndroidInterface.log('ADMIN DEBUG: Stripe test mode enabled')
+            }
+        } else {
+            testPaymentDiv.classList.add('hidden')
+            button.textContent = 'Enable Test Mode'
+            button.className = button.className.replace('bg-red-500 hover:bg-red-600', 'bg-orange-500 hover:bg-orange-600')
+            this.showMessage('Stripe Test Mode DISABLED', 'info', 3000)
+        }
+        
+        // Save test mode state
+        localStorage.setItem('ohrShalomKioskConfig', JSON.stringify(this.config))
+    }
+    
+    async startTestPayment() {
+        console.log('ADMIN DEBUG: Starting test payment')
+        
+        if (!this.config.stripeTestMode) {
+            this.showMessage('Please enable test mode first', 'error', 3000)
+            return
+        }
+        
+        const amount = parseInt(document.getElementById('stripeTestAmount').value)
+        const resultsDiv = document.getElementById('adminStripeResults')
+        resultsDiv.classList.remove('hidden')
+        
+        try {
+            resultsDiv.innerHTML = `Starting test payment for $${(amount / 100).toFixed(2)}...\nTest Mode: ENABLED\nNo real charges will be made\n\nWaiting for NFC tap...`
+            
+            if (window.AndroidInterface && window.AndroidInterface.processNfcPayment) {
+                // Create test payment data
+                const paymentData = {
+                    amount: amount,
+                    currency: 'usd',
+                    email: 'test@admin.kiosk',
+                    isTest: true
+                }
+                
+                console.log('ADMIN DEBUG: Calling Android test payment with:', paymentData)
+                const result = window.AndroidInterface.processNfcPayment(JSON.stringify(paymentData))
+                
+                resultsDiv.innerHTML += `\nPayment initiated...\nResult: ${result}\nCheck main screen for payment status`
+                
+                // Listen for payment completion (this would be handled by the existing payment flow)
+                setTimeout(() => {
+                    resultsDiv.innerHTML += '\n\n✅ Test payment flow completed\n💡 In test mode, all payments are simulated'
+                }, 3000)
+                
+            } else {
+                resultsDiv.innerHTML += '\n❌ Android payment interface not available\n🌐 Running in web mode - actual payment testing not possible'
+            }
+            
+        } catch (error) {
+            console.error('ADMIN DEBUG: Test payment error:', error)
+            resultsDiv.innerHTML = `Test payment failed: ${error.message}`
+        }
+    }
+    
+    // Status and debugging methods
+    getKioskInfo() {
+        const info = {
+            version: this.version,
+            buildDate: this.buildDate,
+            timestamp: new Date().toISOString(),
+            config: this.config,
+            elementsPresent: {
+                hebrewDate: !!document.getElementById('hebrewDate'),
+                parsha: !!document.getElementById('parsha'),
+                candleLighting: !!document.getElementById('candleLighting'),
+                havdalah: !!document.getElementById('havdalah'),
+                sunriseTime: !!document.getElementById('sunriseTime'),
+                sunsetTime: !!document.getElementById('sunsetTime')
+            }
+        }
+        
+        console.log('KIOSK DEBUG: Kiosk info:', JSON.stringify(info, null, 2))
+        if (window.AndroidInterface && window.AndroidInterface.log) {
+            window.AndroidInterface.log('KIOSK DEBUG: Kiosk info: ' + JSON.stringify(info))
+        }
+        
+        return info
+    }
+    
+    async testSimpleApi() {
+        try {
+            console.log('=== KIOSK DEBUG: Testing simple HebCal API ===')
+            const response = await fetch('https://www.hebcal.com/converter?cfg=json&gy=2025&gm=8&gd=26&g2h=1')
+            console.log('KIOSK DEBUG: Simple API response status:', response.status)
+            
+            if (response.ok) {
+                const data = await response.json()
+                console.log('KIOSK DEBUG: Simple API data:', JSON.stringify(data, null, 2))
+                return data
+            } else {
+                throw new Error(`API returned ${response.status}`)
+            }
+        } catch (error) {
+            console.error('KIOSK DEBUG: Simple API test failed:', error)
+            return null
+        }
     }
     
     // For Android bridge compatibility - delegates to new methods

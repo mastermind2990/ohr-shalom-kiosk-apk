@@ -23,11 +23,11 @@ class ConfigManager(private val context: Context) {
         // Default configuration values (Davenport, FL)
         private const val DEFAULT_LATITUDE = 28.1611
         private const val DEFAULT_LONGITUDE = -81.6029
-        private const val DEFAULT_GEONAME_ID = 4154279 // Davenport, FL
+        private const val DEFAULT_GEONAME_ID = 0 // Disabled - use coordinates instead
         private const val DEFAULT_TIMEZONE = "America/New_York"
         private const val DEFAULT_ADMIN_PIN = "12345"
         private const val DEFAULT_ORGANIZATION_NAME = "Ohr Shalom"
-        private const val DEFAULT_LOCATION_METHOD = "geoname"
+        private const val DEFAULT_LOCATION_METHOD = "coordinates"
         private const val DEFAULT_SHACHARIT = "7:00 AM"
         private const val DEFAULT_MINCHA = "2:00 PM"
         private const val DEFAULT_MAARIV = "8:00 PM"
@@ -59,10 +59,10 @@ class ConfigManager(private val context: Context) {
         try {
             val properties = Properties()
             
-            // Location settings - Default to Davenport, FL
+            // Location settings - Default to Davenport, FL (using coordinates)
             properties.setProperty("latitude", DEFAULT_LATITUDE.toString())
             properties.setProperty("longitude", DEFAULT_LONGITUDE.toString())
-            properties.setProperty("geonameId", DEFAULT_GEONAME_ID.toString())
+            // Removed geonameId as it was causing 404 errors - use coordinates instead
             properties.setProperty("locationMethod", DEFAULT_LOCATION_METHOD)
             
             // Time and location
@@ -81,7 +81,7 @@ class ConfigManager(private val context: Context) {
             
             // Save to file
             FileOutputStream(configFile).use { outputStream ->
-                properties.store(outputStream, "Ohr Shalom Kiosk Configuration - Default: Davenport, FL")
+                properties.store(outputStream, "Ohr Shalom Kiosk Configuration - Davenport, FL (Coordinates)")
             }
             
             Log.d(TAG, "Created default config file with Davenport, FL settings")

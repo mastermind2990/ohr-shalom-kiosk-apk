@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "OhrShalomKiosk"
+        private const val VERSION = "1.3-admin-interface"
         private const val PREFS_NAME = "kiosk_preferences"
         private const val KEY_KIOSK_MODE = "kiosk_mode_enabled"
         
@@ -81,7 +82,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        Log.d(TAG, "Ohr Shalom Kiosk starting up...")
+        Log.d(TAG, "=== Ohr Shalom Kiosk v$VERSION starting up ===")
+        Log.d(TAG, "Build info - compileSdk: 34, targetSdk: 34, minSdk: 26")
         
         // Initialize components
         initializeComponents()
@@ -403,84 +405,123 @@ class MainActivity : AppCompatActivity() {
         
         @JavascriptInterface
         fun getHebrewCalendar(): String {
+            Log.d(TAG, "=== HEBCAL DEBUG: getHebrewCalendar() called ===")
+            
             // Load Hebrew calendar data asynchronously and update WebView
             lifecycleScope.launch {
                 try {
                     val config = configManager.getConfig()
-                    val url = if (config.geonameId != null && config.geonameId != 0) {
-                        "https://www.hebcal.com/shabbat?cfg=json&m=50&geonameid=${config.geonameId}"
-                    } else {
-                        "https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${config.latitude}&longitude=${config.longitude}"
-                    }
+                    Log.d(TAG, "HEBCAL DEBUG: Config loaded - lat: ${config.latitude}, lng: ${config.longitude}, geonameId: ${config.geonameId}")
                     
-                    Log.d(TAG, "Fetching Hebrew calendar from: $url")
-                    val request = Request.Builder().url(url).build()
+                    // Always use coordinates as they are more reliable than geonameId
+                    val url = "https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${config.latitude}&longitude=${config.longitude}"
+                    
+                    Log.d(TAG, "HEBCAL DEBUG: Fetching Hebrew calendar from: $url")
+                    
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "OhrShalomKiosk/1.1")
+                        .build()
+                    
+                    Log.d(TAG, "HEBCAL DEBUG: Making network request...")
                     val response = withContext(Dispatchers.IO) {
                         httpClient.newCall(request).execute()
                     }
                     
+                    Log.d(TAG, "HEBCAL DEBUG: Network response received - Code: ${response.code}, Success: ${response.isSuccessful}")
+                    
                     if (response.isSuccessful) {
                         val calendarData = response.body?.string() ?: ""
-                        Log.d(TAG, "Hebrew calendar response: $calendarData")
+                        Log.d(TAG, "HEBCAL DEBUG: Response body length: ${calendarData.length}")
+                        Log.d(TAG, "HEBCAL DEBUG: Response preview: ${calendarData.take(200)}...")
+                        Log.d(TAG, "HEBCAL DEBUG: Full response: $calendarData")
                         
-                        // Update WebView with calendar data (properly escaped JSON)
+                        // Parse the JSON to validate structure
+                        try {
+                            val parsedJson = gson.fromJson(calendarData, Map::class.java)
+                            val items = parsedJson["items"] as? List<*>
+                            Log.d(TAG, "HEBCAL DEBUG: Parsed JSON successfully - Items count: ${items?.size ?: 0}")
+                            
+                            items?.forEachIndexed { index, item ->
+                                val itemMap = item as? Map<*, *>
+                                Log.d(TAG, "HEBCAL DEBUG: Item $index - Category: ${itemMap?.get("category")}, Title: ${itemMap?.get("title")}")
+                            }
+                        } catch (jsonError: Exception) {
+                            Log.e(TAG, "HEBCAL DEBUG: JSON parsing error", jsonError)
+                        }
+                        
+                        // Update WebView with calendar data
                         runOnUiThread {
-                            // Use Gson to properly escape JSON data
-                            val escapedJsonString = gson.toJson(calendarData)
-                            val script = "if (window.kioskInstance && window.kioskInstance.displayHebrewCalendar) { window.kioskInstance.displayHebrewCalendar(JSON.parse($escapedJsonString)); }"
-                            binding.webView.evaluateJavascript(script, null)
+                            Log.d(TAG, "HEBCAL DEBUG: Updating WebView with Hebrew calendar data")
+                            
+                            // Check if WebView and kioskInstance exist
+                            val checkScript = "window.kioskInstance ? 'kioskInstance exists' : 'kioskInstance missing'"
+                            binding.webView.evaluateJavascript(checkScript) { result ->
+                                Log.d(TAG, "HEBCAL DEBUG: WebView kioskInstance check result: $result")
+                            }
+                            
+                            // Pass the raw JSON string directly to JavaScript
+                            val escapedJson = calendarData.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+                            val script = "if (window.kioskInstance && window.kioskInstance.displayHebrewCalendar) { try { window.kioskInstance.displayHebrewCalendar(JSON.parse(\"$escapedJson\")); console.log('HEBCAL DEBUG: displayHebrewCalendar called successfully'); } catch(e) { console.error('HEBCAL DEBUG: Error calling displayHebrewCalendar:', e); } } else { console.error('HEBCAL DEBUG: kioskInstance or displayHebrewCalendar method not found'); }"
+                            
+                            Log.d(TAG, "HEBCAL DEBUG: Executing WebView script")
+                            binding.webView.evaluateJavascript(script) { result ->
+                                Log.d(TAG, "HEBCAL DEBUG: WebView script execution result: $result")
+                            }
                         }
                     } else {
-                        Log.e(TAG, "Hebrew calendar API failed: ${response.code} ${response.message}")
+                        Log.e(TAG, "HEBCAL DEBUG: API failed - Code: ${response.code}, Message: ${response.message}")
+                        Log.e(TAG, "HEBCAL DEBUG: Response headers: ${response.headers}")
+                        response.body?.let { body ->
+                            val errorBody = body.string()
+                            Log.e(TAG, "HEBCAL DEBUG: Error response body: $errorBody")
+                        }
+                        
                         runOnUiThread {
-                            val script = "if (window.kioskInstance && window.kioskInstance.setCalendarErrorStates) { window.kioskInstance.setCalendarErrorStates(); }"
+                            val script = "if (window.kioskInstance && window.kioskInstance.setCalendarErrorStates) { window.kioskInstance.setCalendarErrorStates(); console.log('HEBCAL DEBUG: setCalendarErrorStates called'); } else { console.error('HEBCAL DEBUG: setCalendarErrorStates method not found'); }"
                             binding.webView.evaluateJavascript(script, null)
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error fetching Hebrew calendar", e)
+                    Log.e(TAG, "HEBCAL DEBUG: Exception in getHebrewCalendar", e)
+                    Log.e(TAG, "HEBCAL DEBUG: Exception type: ${e.javaClass.simpleName}")
+                    Log.e(TAG, "HEBCAL DEBUG: Exception message: ${e.message}")
+                    Log.e(TAG, "HEBCAL DEBUG: Exception stack trace: ${e.stackTrace.joinToString("\n")}")
+                    
                     runOnUiThread {
-                        val script = "if (window.kioskInstance && window.kioskInstance.setCalendarErrorStates) { window.kioskInstance.setCalendarErrorStates(); }"
+                        val script = "if (window.kioskInstance && window.kioskInstance.setCalendarErrorStates) { window.kioskInstance.setCalendarErrorStates(); console.log('HEBCAL DEBUG: Error state set due to exception'); } else { console.error('HEBCAL DEBUG: Cannot set error state - method not found'); }"
                         binding.webView.evaluateJavascript(script, null)
                     }
                 }
             }
             
+            Log.d(TAG, "HEBCAL DEBUG: getHebrewCalendar() returning empty object")
             return "{}" // Return empty object immediately, actual data will be updated via callback
         }
         
         @JavascriptInterface
         fun showAdminConfig() {
             runOnUiThread {
-                // Show admin configuration options
-                val config = configManager.getConfig()
-                val message = """
-                    Admin Configuration Access:
-                    
-                    Location: Davenport, FL (${config.geonameId})
-                    Coordinates: ${config.latitude}, ${config.longitude}
-                    Organization: ${config.organizationName}
-                    
-                    Kiosk Mode: ${if (isKioskModeEnabled) "ENABLED" else "DISABLED"}
-                    
-                    Prayer Times:
-                    Shacharit: ${config.shacharit}
-                    Mincha: ${config.mincha} 
-                    Maariv: ${config.maariv}
-                    
-                    Tap outside to return to kiosk.
-                """.trimIndent()
-                
-                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                Log.d(TAG, "ADMIN DEBUG: showAdminConfig called - JavaScript will handle the UI")
                 
                 // Temporarily disable kiosk mode to allow configuration
                 if (isKioskModeEnabled) {
+                    Log.d(TAG, "ADMIN DEBUG: Temporarily disabling kiosk mode for admin access")
                     disableKioskMode()
-                    // Re-enable after 30 seconds
+                    
+                    // Re-enable after 2 minutes to give admin time to configure
                     binding.webView.postDelayed({
+                        Log.d(TAG, "ADMIN DEBUG: Re-enabling kiosk mode after admin timeout")
                         enableKioskMode()
-                    }, 30000)
+                    }, 120000) // 2 minutes
                 }
+                
+                // Log current configuration for debugging
+                val config = configManager.getConfig()
+                Log.d(TAG, "ADMIN DEBUG: Current config - Org: ${config.organizationName}, " +
+                        "Location: ${config.latitude},${config.longitude}, " +
+                        "Timezone: ${config.timeZone}, " +
+                        "Prayer times: ${config.shacharit}/${config.mincha}/${config.maariv}")
             }
         }
         
@@ -524,6 +565,24 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun log(message: String) {
             Log.d("WebView", message)
+        }
+        
+        @JavascriptInterface
+        fun getKioskStatus(): String {
+            return try {
+                val status = mapOf(
+                    "version" to VERSION,
+                    "kioskMode" to isKioskModeEnabled,
+                    "wakeLockHeld" to (wakeLock?.isHeld == true),
+                    "nfcStatus" to getNfcStatus(),
+                    "configFile" to configManager.configFileExists(),
+                    "timestamp" to System.currentTimeMillis()
+                )
+                gson.toJson(status)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting kiosk status", e)
+                "{\"error\":\"${e.message}\"}"
+            }
         }
     }
 
