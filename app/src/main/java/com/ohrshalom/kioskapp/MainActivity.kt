@@ -117,8 +117,9 @@ class MainActivity : AppCompatActivity() {
         configManager = ConfigManager(this)
         paymentManager = StripePaymentManager(this)
         
-        // Check if kiosk mode was previously enabled
+        // Enable kiosk mode by default for donation kiosk
         isKioskModeEnabled = sharedPreferences.getBoolean(KEY_KIOSK_MODE, true) // Default to true
+        Log.d(TAG, "Kiosk mode enabled: $isKioskModeEnabled")
     }
     
     private fun setupWebView() {
@@ -379,16 +380,17 @@ class MainActivity : AppCompatActivity() {
         
         @JavascriptInterface
         fun getHebrewCalendar(): String {
-            // This will be called asynchronously and return cached data if available
+            // Load Hebrew calendar data asynchronously and update WebView
             lifecycleScope.launch {
                 try {
                     val config = configManager.getConfig()
-                    val url = if (config.geonameId != null) {
+                    val url = if (config.geonameId != null && config.geonameId != 0) {
                         "https://www.hebcal.com/shabbat?cfg=json&m=50&geonameid=${config.geonameId}"
                     } else {
                         "https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${config.latitude}&longitude=${config.longitude}"
                     }
                     
+                    Log.d(TAG, "Fetching Hebrew calendar from: $url")
                     val request = Request.Builder().url(url).build()
                     val response = withContext(Dispatchers.IO) {
                         httpClient.newCall(request).execute()
@@ -396,15 +398,27 @@ class MainActivity : AppCompatActivity() {
                     
                     if (response.isSuccessful) {
                         val calendarData = response.body?.string() ?: ""
+                        Log.d(TAG, "Hebrew calendar response: $calendarData")
                         
-                        // Update WebView with calendar data
+                        // Update WebView with calendar data (properly escaped JSON)
                         runOnUiThread {
-                            val script = "if (window.kioskInstance) { window.kioskInstance.displayHebrewCalendar($calendarData); }"
+                            val escapedJson = calendarData.replace("'", "\\'").replace("\n", "\\n")
+                            val script = "if (window.kioskInstance && window.kioskInstance.displayHebrewCalendar) { window.kioskInstance.displayHebrewCalendar($escapedJson); }"
+                            binding.webView.evaluateJavascript(script, null)
+                        }
+                    } else {
+                        Log.e(TAG, "Hebrew calendar API failed: ${response.code} ${response.message}")
+                        runOnUiThread {
+                            val script = "if (window.kioskInstance && window.kioskInstance.setCalendarErrorStates) { window.kioskInstance.setCalendarErrorStates(); }"
                             binding.webView.evaluateJavascript(script, null)
                         }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error fetching Hebrew calendar", e)
+                    runOnUiThread {
+                        val script = "if (window.kioskInstance && window.kioskInstance.setCalendarErrorStates) { window.kioskInstance.setCalendarErrorStates(); }"
+                        binding.webView.evaluateJavascript(script, null)
+                    }
                 }
             }
             
@@ -414,9 +428,35 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun showAdminConfig() {
             runOnUiThread {
-                // For now, just show a toast. In a full implementation, this could open
-                // a native Android admin interface
-                Toast.makeText(this@MainActivity, "Admin configuration - Use PIN to access settings", Toast.LENGTH_LONG).show()
+                // Show admin configuration options
+                val config = configManager.getConfig()
+                val message = """
+                    Admin Configuration Access:
+                    
+                    Location: Davenport, FL (${config.geonameId})
+                    Coordinates: ${config.latitude}, ${config.longitude}
+                    Organization: ${config.organizationName}
+                    
+                    Kiosk Mode: ${if (isKioskMode) "ENABLED" else "DISABLED"}
+                    
+                    Prayer Times:
+                    Shacharit: ${config.shacharit}
+                    Mincha: ${config.mincha} 
+                    Maariv: ${config.maariv}
+                    
+                    Tap outside to return to kiosk.
+                """.trimIndent()
+                
+                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                
+                // Temporarily disable kiosk mode to allow configuration
+                if (isKioskMode) {
+                    disableKioskMode()
+                    // Re-enable after 30 seconds
+                    binding.webView.postDelayed({
+                        enableKioskMode()
+                    }, 30000)
+                }
             }
         }
         

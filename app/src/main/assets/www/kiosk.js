@@ -40,8 +40,13 @@ class OhrShalomKiosk {
         // Update time every second for current time, every minute for date
         setInterval(() => this.updateDateTime(), 1000)
         
-        // Check if Android interface is available
+        // Check if Android interface is available and enable kiosk mode
         this.checkAndroidInterface()
+        
+        // Enable kiosk mode by default
+        setTimeout(() => {
+            this.enterKioskMode()
+        }, 2000) // Wait 2 seconds for initialization to complete
     }
     
     checkAndroidInterface() {
