@@ -137,6 +137,11 @@ class OhrShalomKiosk {
                 }
             }
         })
+        
+        // Global keypress listener for admin PIN entry
+        this.adminPinSequence = ''
+        this.adminPinTimeout = null
+        document.addEventListener('keypress', this.handleAdminPinEntry.bind(this))
     }
     
     setupModalHandlers() {
@@ -194,6 +199,42 @@ class OhrShalomKiosk {
         if (this.tapCount >= 5) {
             this.tapCount = 0
             this.showAdminModal()
+        }
+    }
+    
+    handleAdminPinEntry(e) {
+        // Only handle numeric keys and ignore if we're in an input field
+        if (e.target.tagName === 'INPUT') {
+            return
+        }
+        
+        const key = e.key
+        if (!key.match(/[0-9]/)) {
+            return
+        }
+        
+        // Add to PIN sequence
+        this.adminPinSequence += key
+        console.log('PIN sequence:', this.adminPinSequence.replace(/./g, '*'))
+        
+        // Clear timeout and set new one
+        if (this.adminPinTimeout) {
+            clearTimeout(this.adminPinTimeout)
+        }
+        
+        this.adminPinTimeout = setTimeout(() => {
+            this.adminPinSequence = ''
+        }, 3000)
+        
+        // Check if PIN matches
+        if (this.adminPinSequence === this.config.adminPin) {
+            this.adminPinSequence = ''
+            console.log('Admin PIN entered correctly!')
+            this.showAdminModal()
+        } else if (this.adminPinSequence.length >= this.config.adminPin.length) {
+            // Wrong PIN - reset
+            this.adminPinSequence = ''
+            this.showMessage('Invalid PIN', 'error', 2000)
         }
     }
     
@@ -391,13 +432,18 @@ class OhrShalomKiosk {
     }
     
     showAdminModal() {
+        console.log('Showing admin modal...')
         const modal = document.getElementById('adminModal')
         if (modal) {
             modal.classList.remove('hidden')
+            console.log('Admin modal shown successfully')
             const pinInput = document.getElementById('adminPinInput')
             if (pinInput) {
                 pinInput.focus()
+                console.log('PIN input focused')
             }
+        } else {
+            console.error('Admin modal element not found!')
         }
     }
     
@@ -450,24 +496,15 @@ class OhrShalomKiosk {
     
     async loadHebrewCalendar() {
         try {
-            // Use Android interface if available, otherwise fallback to web API
-            let data = null
+            console.log('Loading Hebrew calendar...')
             
+            // Always use web API for reliable data loading
+            await this.loadHebrewCalendarFromWeb()
+            
+            // Also trigger Android background loading for future caching
             if (window.AndroidInterface && window.AndroidInterface.getHebrewCalendar) {
-                const androidResponse = window.AndroidInterface.getHebrewCalendar()
-                if (androidResponse) {
-                    data = JSON.parse(androidResponse)
-                }
+                window.AndroidInterface.getHebrewCalendar()
             }
-            
-            // Fallback to web API
-            if (!data) {
-                await this.loadHebrewCalendarFromWeb()
-                return
-            }
-            
-            console.log('Hebrew calendar loaded from Android:', data)
-            this.displayHebrewCalendar(data)
             
         } catch (error) {
             console.error('Failed to load Hebrew calendar:', error)
@@ -514,8 +551,7 @@ class OhrShalomKiosk {
         sabbatElements.forEach(elementId => {
             const element = document.getElementById(elementId)
             if (element) {
-                const timeSpan = element.querySelector('span')
-                if (timeSpan) timeSpan.textContent = 'Unavailable'
+                element.textContent = 'Unavailable'
             }
         })
         
@@ -555,15 +591,12 @@ class OhrShalomKiosk {
         
         const candleElement = document.getElementById('candleLighting')
         if (candleElement) {
-            const timeSpan = candleElement.querySelector('span')
-            if (timeSpan) {
-                if (candles) {
-                    const timeMatch = candles.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
-                    const timeText = timeMatch ? timeMatch[1] : candles.title
-                    timeSpan.textContent = timeText
-                } else {
-                    timeSpan.textContent = 'No candle lighting'
-                }
+            if (candles) {
+                const timeMatch = candles.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
+                const timeText = timeMatch ? timeMatch[1] : candles.title
+                candleElement.textContent = timeText
+            } else {
+                candleElement.textContent = 'No candle lighting'
             }
         }
         
@@ -574,15 +607,12 @@ class OhrShalomKiosk {
         
         const havdalahElement = document.getElementById('havdalah')
         if (havdalahElement) {
-            const timeSpan = havdalahElement.querySelector('span')
-            if (timeSpan) {
-                if (havdalah) {
-                    const timeMatch = havdalah.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
-                    const timeText = timeMatch ? timeMatch[1] : havdalah.title
-                    timeSpan.textContent = timeText
-                } else {
-                    timeSpan.textContent = 'No Havdalah'
-                }
+            if (havdalah) {
+                const timeMatch = havdalah.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
+                const timeText = timeMatch ? timeMatch[1] : havdalah.title
+                havdalahElement.textContent = timeText
+            } else {
+                havdalahElement.textContent = 'No Havdalah'
             }
         }
         
@@ -650,15 +680,13 @@ class OhrShalomKiosk {
                 // Update 18 Min
                 const eighteenMinElement = document.getElementById('eighteenMin')
                 if (eighteenMinElement) {
-                    const timeSpan = eighteenMinElement.querySelector('span')
-                    if (timeSpan) timeSpan.textContent = eighteenMinTime
+                    eighteenMinElement.textContent = eighteenMinTime
                 }
                 
                 // Update 72min
                 const seventytwoMinElement = document.getElementById('seventytwoMin')
                 if (seventytwoMinElement) {
-                    const timeSpan = seventytwoMinElement.querySelector('span')
-                    if (timeSpan) timeSpan.textContent = seventytwoMinTime
+                    seventytwoMinElement.textContent = seventytwoMinTime
                 }
             }
         }

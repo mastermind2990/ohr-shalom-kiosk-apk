@@ -106,6 +106,11 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() {
                 // Prevent back button from exiting kiosk mode
                 Log.d(TAG, "Back button pressed - blocked in kiosk mode")
+                // Show message to user
+                binding.webView.post {
+                    val script = "if (window.kioskInstance) { window.kioskInstance.showMessage('Kiosk mode active - contact admin to exit', 'warning', 3000); }"
+                    binding.webView.evaluateJavascript(script, null)
+                }
             }
         })
         
@@ -193,19 +198,28 @@ class MainActivity : AppCompatActivity() {
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
             
-            // Set full screen flags
+            // Set full screen flags with more aggressive settings
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+            
+            // Additional window flags for stronger kiosk mode
+            window.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
             
             isKioskModeEnabled = true
             sharedPreferences.edit().putBoolean(KEY_KIOSK_MODE, true).apply()
             
-            Log.d(TAG, "Kiosk mode enabled")
+            Log.d(TAG, "Kiosk mode enabled with aggressive protection")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to enable kiosk mode", e)
         }
@@ -281,6 +295,15 @@ class MainActivity : AppCompatActivity() {
         
         // Release wake lock to save battery when paused
         wakeLock?.takeIf { it.isHeld }?.release()
+        
+        // Kiosk mode protection - prevent app from being backgrounded
+        if (isKioskModeEnabled) {
+            Log.d(TAG, "App paused in kiosk mode - bringing back to foreground")
+            // Immediately bring back to foreground
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            startActivity(intent)
+        }
         
         Log.d(TAG, "Activity paused")
     }
@@ -500,6 +523,47 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun log(message: String) {
             Log.d("WebView", message)
+        }
+    }
+
+    
+    override fun onStop() {
+        super.onStop()
+        if (isKioskModeEnabled) {
+            Log.d(TAG, "App stopped in kiosk mode - restarting")
+            // Restart the activity to prevent being backgrounded
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            startActivity(intent)
+        }
+    }
+    
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (isKioskModeEnabled) {
+            Log.d(TAG, "User trying to leave app in kiosk mode - preventing")
+            // Immediately bring back to foreground
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            startActivity(intent)
+        }
+    }
+    
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        // Ensure we stay in kiosk mode when launched via intent
+        if (isKioskModeEnabled) {
+            Log.d(TAG, "New intent received - maintaining kiosk mode")
+            enableKioskMode()
+        }
+    }
+    
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Re-enable immersive mode when focus is regained in kiosk mode
+        if (hasFocus && isKioskModeEnabled) {
+            Log.d(TAG, "Window focus regained - re-enabling kiosk mode")
+            enableKioskMode()
         }
     }
     
