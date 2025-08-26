@@ -141,7 +141,25 @@ class OhrShalomKiosk {
         // Global keypress listener for admin PIN entry
         this.adminPinSequence = ''
         this.adminPinTimeout = null
+        
+        // Try both keypress and keydown for better compatibility
         document.addEventListener('keypress', this.handleAdminPinEntry.bind(this))
+        document.addEventListener('keydown', this.handleAdminPinEntry.bind(this))
+        
+        // Also add a global function for debugging
+        window.debugAdminModal = () => {
+            console.log('Debug: manually triggering admin modal')
+            this.showAdminModal()
+        }
+        
+        window.debugPinEntry = (pin) => {
+            console.log('Debug: manually setting PIN sequence to:', pin)
+            this.adminPinSequence = pin || '12345'
+            if (this.adminPinSequence === this.config.adminPin) {
+                console.log('Debug: PIN matches, showing modal')
+                this.showAdminModal()
+            }
+        }
     }
     
     setupModalHandlers() {
@@ -203,19 +221,40 @@ class OhrShalomKiosk {
     }
     
     handleAdminPinEntry(e) {
+        // Prevent duplicate handling of same event
+        if (e.type === 'keydown' && this.lastKeyDownTime && (Date.now() - this.lastKeyDownTime) < 50) {
+            return
+        }
+        if (e.type === 'keypress' && this.lastKeyPressTime && (Date.now() - this.lastKeyPressTime) < 50) {
+            return  
+        }
+        
+        this.lastKeyDownTime = e.type === 'keydown' ? Date.now() : this.lastKeyDownTime
+        this.lastKeyPressTime = e.type === 'keypress' ? Date.now() : this.lastKeyPressTime
+        
+        console.log('Key event:', e.type, 'Key:', e.key, 'Target:', e.target.tagName, 'Current sequence:', this.adminPinSequence)
+        
         // Only handle numeric keys and ignore if we're in an input field
         if (e.target.tagName === 'INPUT') {
+            console.log('Ignoring key event in input field')
             return
         }
         
         const key = e.key
         if (!key.match(/[0-9]/)) {
+            console.log('Non-numeric key ignored:', key)
+            return
+        }
+        
+        // Only process on keydown to avoid duplicates
+        if (e.type !== 'keydown') {
             return
         }
         
         // Add to PIN sequence
         this.adminPinSequence += key
-        console.log('PIN sequence:', this.adminPinSequence.replace(/./g, '*'))
+        console.log('PIN sequence updated:', this.adminPinSequence.replace(/./g, '*'), 'Length:', this.adminPinSequence.length)
+        console.log('Expected PIN:', this.config.adminPin, 'Current matches:', this.adminPinSequence === this.config.adminPin)
         
         // Clear timeout and set new one
         if (this.adminPinTimeout) {
@@ -223,18 +262,23 @@ class OhrShalomKiosk {
         }
         
         this.adminPinTimeout = setTimeout(() => {
+            console.log('PIN sequence timeout - resetting')
             this.adminPinSequence = ''
-        }, 3000)
+        }, 5000) // Increased timeout to 5 seconds
         
         // Check if PIN matches
         if (this.adminPinSequence === this.config.adminPin) {
             this.adminPinSequence = ''
-            console.log('Admin PIN entered correctly!')
+            console.log('=== Admin PIN MATCHED! Showing modal... ===')
             this.showAdminModal()
         } else if (this.adminPinSequence.length >= this.config.adminPin.length) {
             // Wrong PIN - reset
+            console.log('Wrong PIN entered, resetting. Expected:', this.config.adminPin, 'Got:', this.adminPinSequence)
             this.adminPinSequence = ''
-            this.showMessage('Invalid PIN', 'error', 2000)
+            this.showMessage('Invalid PIN - try typing 12345', 'error', 3000)
+        } else if (this.adminPinSequence.length === 1) {
+            // Give user feedback that PIN entry has started
+            this.showMessage(`PIN entry started (${this.adminPinSequence.length}/${this.config.adminPin.length})`, 'info', 1000)
         }
     }
     
@@ -432,18 +476,29 @@ class OhrShalomKiosk {
     }
     
     showAdminModal() {
-        console.log('Showing admin modal...')
+        console.log('=== showAdminModal() called ===')
         const modal = document.getElementById('adminModal')
+        console.log('Admin modal element:', modal)
+        
         if (modal) {
+            console.log('Modal current classes:', modal.className)
             modal.classList.remove('hidden')
-            console.log('Admin modal shown successfully')
+            console.log('Modal classes after removing hidden:', modal.className)
+            console.log('Admin modal should now be visible')
+            
             const pinInput = document.getElementById('adminPinInput')
+            console.log('PIN input element:', pinInput)
             if (pinInput) {
-                pinInput.focus()
-                console.log('PIN input focused')
+                setTimeout(() => {
+                    pinInput.focus()
+                    console.log('PIN input focused')
+                }, 100)
             }
         } else {
             console.error('Admin modal element not found!')
+            // Let's check if any element with adminModal exists
+            const allElements = document.querySelectorAll('*[id*="admin"]')
+            console.log('All elements with "admin" in ID:', allElements)
         }
     }
     
@@ -514,19 +569,12 @@ class OhrShalomKiosk {
     
     async loadHebrewCalendarFromWeb() {
         try {
-            // Use Davenport, FL coordinates by default
-            const geonameId = this.config.geonameId || 4154279 // Davenport, FL
+            // Use Davenport, FL coordinates by default (geoname seems to have issues)
             const latitude = this.config.latitude || 28.1611
             const longitude = this.config.longitude || -81.6029
-            const locationMethod = this.config.locationMethod || 'geoname'
             
-            let url = 'https://www.hebcal.com/shabbat?cfg=json&m=50'
-            
-            if (geonameId && locationMethod === 'geoname') {
-                url += `&geonameid=${geonameId}`
-            } else {
-                url += `&latitude=${latitude}&longitude=${longitude}`
-            }
+            // Always use coordinates as they seem more reliable
+            const url = `https://www.hebcal.com/shabbat?cfg=json&m=50&latitude=${latitude}&longitude=${longitude}`
             
             console.log('Hebrew calendar API URL:', url)
             
@@ -537,6 +585,15 @@ class OhrShalomKiosk {
             
             const data = await response.json()
             console.log('Hebrew calendar API response:', data)
+            
+            // Validate the response structure
+            if (!data || !data.items || !Array.isArray(data.items)) {
+                throw new Error('Invalid API response structure')
+            }
+            
+            if (data.items.length === 0) {
+                throw new Error('No items returned from HebCal API')
+            }
             
             this.displayHebrewCalendar(data)
         } catch (error) {
@@ -567,52 +624,74 @@ class OhrShalomKiosk {
         console.log('Displaying Hebrew calendar data:', data)
         const items = data.items || []
         
-        // Find parsha
-        const parsha = items.find(item => item.category === 'parashat')
-        if (parsha && parsha.hdate) {
-            const hebrewDateEl = document.getElementById('hebrewDate')
-            if (hebrewDateEl) {
-                hebrewDateEl.textContent = parsha.hdate
-            }
+        if (!items.length) {
+            console.error('No items in Hebrew calendar data')
+            this.setCalendarErrorStates()
+            return
         }
         
+        // Find parsha - category should be 'parashat'
+        const parsha = items.find(item => item.category === 'parashat')
+        console.log('Found parsha:', parsha)
+        
         if (parsha) {
+            // Display Hebrew date from parsha
+            if (parsha.hdate) {
+                const hebrewDateEl = document.getElementById('hebrewDate')
+                if (hebrewDateEl) {
+                    hebrewDateEl.textContent = parsha.hdate
+                    console.log('Set Hebrew date:', parsha.hdate)
+                }
+            }
+            
+            // Display parsha name - prefer Hebrew, fallback to English
             const parshaEl = document.getElementById('parsha')
             if (parshaEl) {
                 const parshaText = parsha.hebrew || parsha.title || 'No Parsha'
                 parshaEl.textContent = parshaText
+                console.log('Set parsha:', parshaText)
             }
+        } else {
+            console.error('No parsha found in API response')
+            const hebrewDateEl = document.getElementById('hebrewDate')
+            if (hebrewDateEl) hebrewDateEl.textContent = 'No Hebrew Date'
+            const parshaEl = document.getElementById('parsha')
+            if (parshaEl) parshaEl.textContent = 'No Parsha'
         }
         
-        // Find candle lighting
-        const candles = items.find(item => 
-            item.category === 'candles' || (item.title && item.title.toLowerCase().includes('candle'))
-        )
+        // Find candle lighting - category should be 'candles'
+        const candles = items.find(item => item.category === 'candles')
+        console.log('Found candle lighting:', candles)
         
         const candleElement = document.getElementById('candleLighting')
         if (candleElement) {
             if (candles) {
+                // Extract time from title like "Candle lighting: 7:32pm"
                 const timeMatch = candles.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
-                const timeText = timeMatch ? timeMatch[1] : candles.title
+                const timeText = timeMatch ? timeMatch[1] : 'Invalid time'
                 candleElement.textContent = timeText
+                console.log('Set candle lighting:', timeText)
             } else {
-                candleElement.textContent = 'No candle lighting'
+                candleElement.textContent = 'No candles'
+                console.error('No candle lighting found in API response')
             }
         }
         
-        // Find Havdalah
-        const havdalah = items.find(item => 
-            item.category === 'havdalah' || (item.title && item.title.toLowerCase().includes('havdalah'))
-        )
+        // Find Havdalah - category should be 'havdalah'
+        const havdalah = items.find(item => item.category === 'havdalah')
+        console.log('Found havdalah:', havdalah)
         
         const havdalahElement = document.getElementById('havdalah')
         if (havdalahElement) {
             if (havdalah) {
+                // Extract time from title like "Havdalah (50 min): 8:39pm"
                 const timeMatch = havdalah.title.match(/(\d{1,2}:\d{2}[ap]m)/i)
-                const timeText = timeMatch ? timeMatch[1] : havdalah.title
+                const timeText = timeMatch ? timeMatch[1] : 'Invalid time'
                 havdalahElement.textContent = timeText
+                console.log('Set havdalah:', timeText)
             } else {
                 havdalahElement.textContent = 'No Havdalah'
+                console.error('No havdalah found in API response')
             }
         }
         
@@ -820,6 +899,12 @@ class OhrShalomKiosk {
 // Initialize the kiosk when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.kioskInstance = new OhrShalomKiosk()
+    console.log('=== Kiosk instance created and available as window.kioskInstance ===')
+    console.log('Debug functions available:')
+    console.log('- window.debugAdminModal() - Show admin modal directly')
+    console.log('- window.debugPinEntry("12345") - Test PIN entry')
+    console.log('- window.kioskInstance.showAdminModal() - Direct modal access')
+    console.log('Admin PIN is:', window.kioskInstance.config.adminPin)
 })
 
 console.log('Ohr Shalom Kiosk JavaScript loaded for Android WebView')
