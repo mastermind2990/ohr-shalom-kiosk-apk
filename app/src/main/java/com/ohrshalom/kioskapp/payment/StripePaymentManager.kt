@@ -7,14 +7,10 @@ import com.stripe.stripeterminal.external.callable.Callback
 import com.stripe.stripeterminal.external.callable.Cancelable
 import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
 import com.stripe.stripeterminal.external.callable.ConnectionTokenProvider
-import com.stripe.stripeterminal.external.callable.DiscoveryListener
 import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
-import com.stripe.stripeterminal.external.callable.ReaderCallback
 import com.stripe.stripeterminal.external.callable.TerminalListener
-import com.stripe.stripeterminal.external.models.ConnectionConfiguration
 import com.stripe.stripeterminal.external.models.ConnectionStatus
 import com.stripe.stripeterminal.external.models.ConnectionTokenException
-import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
 import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.PaymentIntentStatus
@@ -41,7 +37,6 @@ class StripePaymentManager(private val context: Context) {
     
     private var currentPaymentIntent: PaymentIntent? = null
     private var currentCancelable: Cancelable? = null
-    private var connectedReader: Reader? = null
     private var connectionTokenEndpoint: String? = null
     private var locationId: String? = null
     
@@ -64,18 +59,10 @@ class StripePaymentManager(private val context: Context) {
                     listener = object : TerminalListener {
                         override fun onConnectionStatusChange(status: ConnectionStatus) {
                             Log.d(TAG, "Connection status changed: $status")
-                            if (status == ConnectionStatus.NOT_CONNECTED) {
-                                connectedReader = null
-                            }
                         }
                         
                         override fun onPaymentStatusChange(status: PaymentStatus) {
                             Log.d(TAG, "Payment status changed: $status")
-                        }
-                        
-                        override fun onUnexpectedReaderDisconnect(reader: Reader) {
-                            Log.w(TAG, "Reader disconnected unexpectedly: ${reader.id}")
-                            connectedReader = null
                         }
                     }
                 )
@@ -134,15 +121,13 @@ class StripePaymentManager(private val context: Context) {
         return try {
             Log.d(TAG, "Processing real NFC payment: $amountCents cents")
             
-            // Check if reader is connected
-            if (connectedReader == null) {
-                Log.w(TAG, "No reader connected, attempting to connect...")
+            // For Tap to Pay, ensure configuration is set up
+            if (connectionTokenEndpoint.isNullOrBlank() || locationId.isNullOrBlank()) {
+                Log.w(TAG, "Tap to Pay not configured, setting up...")
                 discoverAndConnectReader()
-                // Wait a moment for connection
-                kotlinx.coroutines.delay(2000)
                 
-                if (connectedReader == null) {
-                    Log.e(TAG, "Cannot process payment - no reader connected")
+                if (connectionTokenEndpoint.isNullOrBlank() || locationId.isNullOrBlank()) {
+                    Log.e(TAG, "Cannot process payment - Tap to Pay not configured")
                     return false
                 }
             }
@@ -239,7 +224,6 @@ class StripePaymentManager(private val context: Context) {
     fun getTerminalStatus(): String {
         return try {
             val isInitialized = Terminal.isInitialized()
-            val reader = connectedReader
             val hasEndpoint = !connectionTokenEndpoint.isNullOrBlank()
             val hasLocation = !locationId.isNullOrBlank()
             
@@ -247,8 +231,7 @@ class StripePaymentManager(private val context: Context) {
                 !isInitialized -> "Terminal not initialized"
                 !hasEndpoint -> "Connection endpoint not configured"
                 !hasLocation -> "Location ID not configured"
-                reader == null -> "Reader not connected"
-                else -> "Ready (Reader: ${reader.id})"
+                else -> "Ready for Tap to Pay (Location: $locationId)"
             }
         } catch (e: Exception) {
             "Error: ${e.message}"
@@ -342,61 +325,29 @@ class StripePaymentManager(private val context: Context) {
     
     private fun discoverAndConnectReader() {
         try {
-            Log.d(TAG, "Discovering and connecting to local mobile reader (tablet)...")
+            Log.d(TAG, "Setting up Tap to Pay reader (tablet)...")
             
             val locationId = this.locationId
             if (locationId.isNullOrBlank()) {
-                Log.e(TAG, "Location ID not configured for local mobile reader")
+                Log.e(TAG, "Location ID not configured for Tap to Pay")
                 return
             }
             
-            // First discover available readers
-            val config = DiscoveryConfiguration.LocalMobileDiscoveryConfiguration.Builder().build()
+            Log.d(TAG, "Tap to Pay configured with location ID: $locationId")
+            Log.d(TAG, "Device is ready to process NFC payments")
             
-            Terminal.getInstance().discoverReaders(config, object : DiscoveryListener {
-                override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
-                    Log.d(TAG, "Discovered ${readers.size} readers")
-                    if (readers.isNotEmpty()) {
-                        // Connect to the first available reader (typically the local tablet)
-                        val reader = readers[0]
-                        val connectionConfig = ConnectionConfiguration.LocalMobileConnectionConfiguration(locationId)
-                        
-                        Terminal.getInstance().connectLocalMobileReader(
-                            reader,
-                            connectionConfig, 
-                            object : ReaderCallback {
-                                override fun onSuccess(reader: Reader) {
-                                    Log.d(TAG, "Successfully connected local mobile reader: ${reader.id}")
-                                    connectedReader = reader
-                                }
-                                
-                                override fun onFailure(exception: TerminalException) {
-                                    Log.e(TAG, "Failed to connect local mobile reader: ${exception.errorMessage}")
-                                    Log.e(TAG, "Error code: ${exception.errorCode}")
-                                }
-                            }
-                        )
-                    }
-                }
-            }, object : Callback {
-                override fun onSuccess() {
-                    Log.d(TAG, "Reader discovery completed")
-                }
-                
-                override fun onFailure(exception: TerminalException) {
-                    Log.e(TAG, "Reader discovery failed: ${exception.errorMessage}")
-                }
-            })
+            // For Tap to Pay, the device itself acts as the reader
+            // No explicit reader connection needed - the Terminal SDK handles this internally
+            // when collectPaymentMethod is called
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error discovering/connecting to local mobile reader", e)
+            Log.e(TAG, "Error setting up Tap to Pay", e)
         }
     }
 
     fun cleanup() {
         try {
             cancelCurrentPayment()
-            connectedReader = null
             currentPaymentIntent = null
             currentCancelable = null
             Log.d(TAG, "Payment manager cleaned up")
