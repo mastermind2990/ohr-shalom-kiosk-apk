@@ -22,11 +22,11 @@ class OhrShalomKiosk {
             organizationName: 'Ohr Shalom',
             logoUrl: '', // Custom logo URL
             stripeTestMode: false, // Test mode for Stripe payments
-            // Stripe configuration
-            stripePublishableKey: '', // Stripe publishable key (pk_test_... or pk_live_...)
-            stripeTokenEndpoint: '', // Server endpoint for connection tokens
-            stripeLocationId: '', // Stripe Terminal location ID
-            stripeEnvironment: 'test' // 'test' or 'live'
+            // Stripe configuration - Production defaults
+            stripePublishableKey: 'pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr', // Live publishable key
+            stripeTokenEndpoint: 'http://161.35.140.12/api/stripe/connection_token', // Production backend endpoint
+            stripeLocationId: 'tml_GKsXoQ8u9cFZJF', // Production Terminal location ID
+            stripeEnvironment: 'live' // Live mode for production
         }
         
         // State
@@ -56,6 +56,9 @@ class OhrShalomKiosk {
         
         // Load saved configuration first
         this.loadConfigurationFromStorage()
+        
+        // Auto-configure Stripe with hardcoded production values if needed
+        this.autoConfigureStripe()
         
         this.setupEventListeners()
         this.loadHebrewCalendar()
@@ -116,6 +119,75 @@ class OhrShalomKiosk {
         // Merge with defaults
         if (saved) {
             this.config = { ...this.config, ...saved }
+        }
+    }
+    
+    autoConfigureStripe() {
+        console.log('STRIPE DEBUG: Auto-configuring Stripe with production defaults')
+        
+        // Check if Stripe is already configured
+        if (this.config.stripePublishableKey && 
+            this.config.stripeTokenEndpoint && 
+            this.config.stripeLocationId) {
+            console.log('STRIPE DEBUG: Stripe already configured, skipping auto-configuration')
+            
+            // Still update Android interface with current values
+            this.updateAndroidStripeConfig()
+            return
+        }
+        
+        // Auto-configure with hardcoded production values
+        console.log('STRIPE DEBUG: Configuring with production defaults')
+        this.config.stripePublishableKey = 'pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr'
+        this.config.stripeTokenEndpoint = 'http://161.35.140.12/api/stripe/connection_token'
+        this.config.stripeLocationId = 'tml_GKsXoQ8u9cFZJF'
+        this.config.stripeEnvironment = 'live'
+        this.config.stripeTestMode = false
+        
+        // Save the configuration
+        this.saveConfig()
+        
+        // Update Android interface
+        this.updateAndroidStripeConfig()
+        
+        console.log('STRIPE DEBUG: Production defaults configured successfully')
+    }
+    
+    updateAndroidStripeConfig() {
+        // Update Android Stripe configuration
+        if (window.AndroidInterface && window.AndroidInterface.updateStripeConfig) {
+            try {
+                console.log('STRIPE DEBUG: Updating Android Stripe configuration')
+                const success = window.AndroidInterface.updateStripeConfig(
+                    this.config.stripePublishableKey,
+                    this.config.stripeTokenEndpoint,
+                    this.config.stripeLocationId,
+                    this.config.stripeEnvironment === 'live'
+                )
+                if (success) {
+                    console.log('STRIPE DEBUG: Android Stripe configuration updated successfully')
+                } else {
+                    console.error('STRIPE DEBUG: Failed to update Android Stripe configuration')
+                }
+            } catch (error) {
+                console.error('STRIPE DEBUG: Error updating Android Stripe configuration:', error)
+            }
+        }
+    }
+    
+    saveConfig() {
+        console.log('KIOSK DEBUG: Saving configuration')
+        try {
+            // Save to localStorage
+            localStorage.setItem('ohrShalomKioskConfig', JSON.stringify(this.config))
+            
+            // Save to Android if available
+            if (window.AndroidInterface && window.AndroidInterface.saveConfig) {
+                const success = window.AndroidInterface.saveConfig(JSON.stringify(this.config))
+                console.log('KIOSK DEBUG: Android config save result:', success)
+            }
+        } catch (error) {
+            console.error('KIOSK DEBUG: Error saving configuration:', error)
         }
     }
     
@@ -1147,7 +1219,8 @@ class OhrShalomKiosk {
                 stripePublishableKey: document.getElementById('adminStripePublishableKey').value,
                 stripeTokenEndpoint: document.getElementById('adminStripeTokenEndpoint').value,
                 stripeLocationId: document.getElementById('adminStripeLocationId').value,
-                stripeEnvironment: document.getElementById('adminStripeEnvironment').value
+                stripeEnvironment: document.getElementById('adminStripeEnvironment').value,
+                stripeTestMode: document.getElementById('adminStripeEnvironment').value === 'test'
             }
             
             // Handle new PIN if provided
@@ -1168,6 +1241,13 @@ class OhrShalomKiosk {
             if (window.AndroidInterface && window.AndroidInterface.saveConfig) {
                 const success = window.AndroidInterface.saveConfig(JSON.stringify(newConfig))
                 console.log('ADMIN DEBUG: Android config save result:', success)
+            }
+            
+            // Update Android Stripe configuration if any Stripe values changed
+            if (newConfig.stripePublishableKey || newConfig.stripeTokenEndpoint || 
+                newConfig.stripeLocationId || newConfig.stripeEnvironment) {
+                console.log('ADMIN DEBUG: Updating Android Stripe configuration')
+                this.updateAndroidStripeConfig()
             }
             
             // Update prayer times display

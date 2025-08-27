@@ -52,6 +52,8 @@ class StripePaymentManager(private val context: Context) {
     
     init {
         initializeStripeTerminal()
+        // Auto-configure with hardcoded production values for immediate Terminal registration
+        configureProductionDefaults()
     }
     
     private fun initializeStripeTerminal() {
@@ -81,6 +83,36 @@ class StripePaymentManager(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Stripe Terminal", e)
+        }
+    }
+    
+    /**
+     * Configure with hardcoded production values for immediate Terminal registration
+     */
+    private fun configureProductionDefaults() {
+        try {
+            Log.d(TAG, "Configuring production defaults for automatic Terminal registration")
+            
+            // Hardcoded production values
+            val productionPublishableKey = "pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr"
+            val productionTokenEndpoint = "http://161.35.140.12/api/stripe/connection_token"
+            val productionLocationId = "tml_GKsXoQ8u9cFZJF"
+            
+            // Configure automatically
+            val success = updateConfiguration(
+                publishableKey = productionPublishableKey,
+                tokenEndpoint = productionTokenEndpoint,
+                locationId = productionLocationId,
+                isLiveMode = true
+            )
+            
+            if (success) {
+                Log.d(TAG, "Production defaults configured successfully - Terminal registration will begin automatically")
+            } else {
+                Log.w(TAG, "Failed to configure production defaults")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error configuring production defaults", e)
         }
     }
     
