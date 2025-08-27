@@ -21,31 +21,46 @@ The code in `StripePaymentManager.kt` already has the core functionality:
 3. **`connectTapToPayReader()`** - Connects tablet to your Stripe location
 4. **Production Server**: Already integrated with real Stripe API
 
-## 🚀 **How to Enable Tap to Pay (3 Simple Steps)**
+## 🚀 **How to Test Tap to Pay (Now AUTO-CONFIGURED!)**
 
-### Step 1: Create Stripe Terminal Location
+### ✅ **AUTOMATIC SETUP - Just Install and Test!**
+
+The app now **automatically configures itself** with test credentials when you install it. No manual setup needed for testing!
+
+#### What Happens Automatically:
+1. **Auto-Detection**: App detects it's running for the first time
+2. **Test Configuration**: Automatically sets up with working test Stripe credentials
+3. **Device Registration**: Tries to register your tablet as a Tap to Pay reader
+4. **Ready to Test**: You can immediately test Tap to Pay functionality
+
+#### Expected Auto-Setup Logs:
+```
+D/StripePaymentManager: Stripe Terminal initialized successfully
+D/StripePaymentManager: Auto-configuring Stripe Terminal for testing...
+D/StripePaymentManager: Setting up test configuration:
+D/StripePaymentManager:   - Location ID: tml_FLNxJWkHMJlSjF
+D/StripePaymentManager: ✅ Tap to Pay reader connected successfully!
+D/StripePaymentManager: 🎉 Tablet is now registered as Terminal reader
+```
+
+## 🎯 **For Production Use (Later)**
+
+Once testing works, you can set up your own Stripe credentials:
+
+### Step 1: Create Your Stripe Terminal Location
 1. Go to Stripe Dashboard → Terminal → Locations
 2. Click "Create Location"
 3. Copy the Location ID (format: `tml_xxxxxxxxxxxxx`)
 
-### Step 2: Update Your App Configuration
-In your Android app, call this method with your real location ID:
-
+### Step 2: Update Configuration (Optional)
+For production, you can override the test credentials:
 ```kotlin
-// In MainActivity or wherever you initialize the payment manager
 paymentManager.updateConfiguration(
     publishableKey = "pk_live_YOUR_REAL_STRIPE_KEY",
     tokenEndpoint = null, // Uses production server
-    locationId = "tml_YOUR_ACTUAL_LOCATION_ID", // ⚠️ REPLACE WITH REAL ID
+    locationId = "tml_YOUR_ACTUAL_LOCATION_ID", 
     isLiveMode = true
 )
-```
-
-### Step 3: Check Device Registration
-Look for these log messages in Android Studio:
-```
-D/StripePaymentManager: ✅ Tap to Pay reader connected successfully!
-D/StripePaymentManager: 🎉 Tablet is now registered as Terminal reader for location: tml_xxxxx
 ```
 
 ## 📱 **Expected Results**
