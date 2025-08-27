@@ -1,9 +1,9 @@
 // Ohr Shalom Donation Kiosk - Android WebView Integration
-// Version: 1.8.7-terminal-discovery-api
+// Version: 1.8.8-localmobile-api-fixed
 // Build: August 27, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.8.7-terminal-discovery-api'
+        this.version = '1.8.8-localmobile-api-fixed'
         this.buildDate = '2025-08-27'
         // Configuration with Davenport, FL defaults
         this.config = {
