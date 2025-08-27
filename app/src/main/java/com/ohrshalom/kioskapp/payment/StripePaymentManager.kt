@@ -42,12 +42,21 @@ class StripePaymentManager(private val context: Context) {
         
         // For demo/testing - replace with your actual Stripe secret key
         private const val STRIPE_TEST_SECRET_KEY = "sk_test_..."
+        
+        // SharedPreferences keys for persistent reader management
+        private const val PREFS_NAME = "stripe_reader_prefs"
+        private const val KEY_READER_SERIAL_NUMBER = "reader_serial_number"
+        private const val KEY_READER_LOCATION_ID = "reader_location_id"
+        private const val KEY_LAST_CONNECTION_TIME = "last_connection_time"
     }
     
     private var currentPaymentIntent: PaymentIntent? = null
     private var currentCancelable: Cancelable? = null
     private var connectedTapToPayReader: Reader? = null
     private var discoverCancelable: Cancelable? = null
+    
+    // SharedPreferences for persistent storage
+    private val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     
     // TapToPayReaderListener for auto-reconnect handling
     private val tapToPayReaderListener = object : TapToPayReaderListener {
@@ -110,22 +119,61 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "Auto-configuring Stripe Terminal for testing...")
             
-            // Use test credentials that work with the existing connection token server
-            val testLocationId = "tml_FLNxJWkHMJlSjF"  // Test location ID
+            // Use production credentials with correct location
+            val productionLocationId = "tml_GKsXoQ8u9cFZJF"  // Production location ID
             val testPublishableKey = "pk_test_51JRl4DJV4FRl6JZQK1uJhk8ZMQq4uJV4FRl6JZQK1uJhk8ZMQq4u"
             
-            Log.d(TAG, "Setting up test configuration:")
-            Log.d(TAG, "  - Location ID: $testLocationId")
+            Log.d(TAG, "Setting up production configuration:")
+            Log.d(TAG, "  - Location ID: $productionLocationId")
             Log.d(TAG, "  - Publishable Key: ${testPublishableKey.take(20)}...")
             
             // Check if already connected before attempting to initialize
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                checkAndInitializeTapToPayReader(testLocationId)
+                checkAndInitializeTapToPayReader(productionLocationId)
             }, 2000) // Give Terminal time to fully initialize
             
         } catch (e: Exception) {
             Log.e(TAG, "Error in auto-configuration", e)
         }
+    }
+    
+    /**
+     * Get stored reader serial number if exists
+     */
+    private fun getStoredReaderSerialNumber(): String? {
+        return sharedPrefs.getString(KEY_READER_SERIAL_NUMBER, null)
+    }
+    
+    /**
+     * Store reader serial number and connection details
+     */
+    private fun storeReaderDetails(serialNumber: String, locationId: String) {
+        sharedPrefs.edit()
+            .putString(KEY_READER_SERIAL_NUMBER, serialNumber)
+            .putString(KEY_READER_LOCATION_ID, locationId)
+            .putLong(KEY_LAST_CONNECTION_TIME, System.currentTimeMillis())
+            .apply()
+        
+        Log.d(TAG, "📱 Stored reader details:")
+        Log.d(TAG, "  - Serial Number: $serialNumber")
+        Log.d(TAG, "  - Location ID: $locationId")
+        Log.d(TAG, "  - Connection Time: ${System.currentTimeMillis()}")
+    }
+    
+    /**
+     * Check if we have existing reader registration
+     */
+    private fun hasExistingReaderRegistration(): Boolean {
+        val serialNumber = getStoredReaderSerialNumber()
+        val hasRegistration = !serialNumber.isNullOrEmpty()
+        
+        if (hasRegistration) {
+            Log.d(TAG, "🔍 Found existing reader registration: $serialNumber")
+        } else {
+            Log.d(TAG, "📝 No existing reader registration found")
+        }
+        
+        return hasRegistration
     }
     
     /**
@@ -144,14 +192,26 @@ class StripePaymentManager(private val context: Context) {
                 Log.d(TAG, "Reader type: ${connectedReader.deviceType}")
                 Log.d(TAG, "✅ Tap to Pay reader already connected and ready!")
                 
-                // Store the already connected reader
+                // Store the already connected reader and update persistent storage
                 connectedTapToPayReader = connectedReader
+                storeReaderDetails(connectedReader.id ?: "unknown", locationId)
+                
+                // Send heartbeat to keep reader alive
+                sendReaderHeartbeat()
                 return
             }
             
-            // No existing connection, proceed with initialization
-            Log.d(TAG, "No existing reader connection, initializing Tap to Pay reader...")
-            initializeTapToPayReader(locationId)
+            // Check if we have existing reader registration
+            val storedSerialNumber = getStoredReaderSerialNumber()
+            if (storedSerialNumber != null) {
+                Log.d(TAG, "🔄 Attempting to reconnect to existing reader: $storedSerialNumber")
+                // Try to reconnect to the existing reader instead of creating new one
+                attemptReaderReconnection(storedSerialNumber, locationId)
+            } else {
+                // No existing registration, proceed with new initialization
+                Log.d(TAG, "📝 No existing reader registration, initializing new Tap to Pay reader...")
+                initializeTapToPayReader(locationId)
+            }
             
         } catch (e: Exception) {
             Log.e(TAG, "Error checking reader connection state", e)
@@ -402,6 +462,29 @@ class StripePaymentManager(private val context: Context) {
     }
     
     /**
+     * Get stored reader information for debugging
+     */
+    fun getStoredReaderInfo(): String {
+        val serialNumber = getStoredReaderSerialNumber()
+        val locationId = sharedPrefs.getString(KEY_READER_LOCATION_ID, "Not set")
+        val lastConnection = sharedPrefs.getLong(KEY_LAST_CONNECTION_TIME, 0)
+        val lastConnectionTime = if (lastConnection > 0) {
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                .format(java.util.Date(lastConnection))
+        } else {
+            "Never"
+        }
+        
+        return """
+            📱 Stored Reader Information:
+            • Serial Number: ${serialNumber ?: "Not registered"}
+            • Location ID: $locationId
+            • Last Connection: $lastConnectionTime
+            • Current Reader: ${connectedTapToPayReader?.id ?: "None"}
+        """.trimIndent()
+    }
+    
+    /**
      * Update Stripe configuration
      * 
      * @param publishableKey Stripe publishable key
@@ -547,8 +630,12 @@ class StripePaymentManager(private val context: Context) {
                         Log.d(TAG, "Device Type: ${connectedReader.deviceType}")
                         Log.d(TAG, "🎉 Android tablet is now registered as Tap to Pay reader for location: $locationId")
                         
-                        // Store the connected reader
+                        // Store the connected reader and persist details
                         connectedTapToPayReader = connectedReader
+                        storeReaderDetails(connectedReader.id ?: "unknown", locationId)
+                        
+                        // Start heartbeat to keep reader alive
+                        startReaderHeartbeat()
                     }
                     
                     override fun onFailure(e: TerminalException) {
@@ -645,6 +732,102 @@ class StripePaymentManager(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error disconnecting Tap to Pay reader", e)
+        }
+    }
+    
+    /**
+     * Attempt to reconnect to existing reader using stored serial number
+     */
+    private fun attemptReaderReconnection(serialNumber: String, locationId: String) {
+        try {
+            Log.d(TAG, "🔄 Attempting reconnection to reader: $serialNumber")
+            
+            // Try to discover readers and find the one with matching serial number
+            val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            val discoveryConfig = DiscoveryConfiguration.TapToPayDiscoveryConfiguration(isDebuggable)
+            
+            discoverCancelable = Terminal.getInstance().discoverReaders(
+                discoveryConfig,
+                object : DiscoveryListener {
+                    override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
+                        Log.d(TAG, "🔍 Found ${readers.size} readers during reconnection attempt")
+                        
+                        // Look for our specific reader by serial number
+                        val targetReader = readers.find { it.id == serialNumber }
+                        if (targetReader != null) {
+                            Log.d(TAG, "✅ Found target reader: ${targetReader.id}")
+                            connectTapToPayReader(targetReader, locationId)
+                        } else {
+                            Log.w(TAG, "⚠️ Target reader $serialNumber not found, will create new registration")
+                            // If stored reader not found, proceed with new initialization
+                            initializeTapToPayReader(locationId)
+                        }
+                    }
+                },
+                object : Callback {
+                    override fun onSuccess() {
+                        Log.d(TAG, "📡 Reader discovery for reconnection completed")
+                    }
+                    
+                    override fun onFailure(e: TerminalException) {
+                        Log.e(TAG, "❌ Reader reconnection discovery failed: ${e.errorMessage}")
+                        // Fallback to new initialization
+                        initializeTapToPayReader(locationId)
+                    }
+                }
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during reader reconnection attempt", e)
+            // Fallback to new initialization
+            initializeTapToPayReader(locationId)
+        }
+    }
+    
+    /**
+     * Start periodic heartbeat to keep reader alive
+     */
+    private fun startReaderHeartbeat() {
+        val heartbeatInterval = 30000L // 30 seconds
+        
+        val heartbeatRunnable = object : Runnable {
+            override fun run() {
+                sendReaderHeartbeat()
+                // Schedule next heartbeat
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this, heartbeatInterval)
+            }
+        }
+        
+        // Start first heartbeat
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(heartbeatRunnable, heartbeatInterval)
+        Log.d(TAG, "💓 Started reader heartbeat (every ${heartbeatInterval / 1000}s)")
+    }
+    
+    /**
+     * Send heartbeat to keep reader connection alive
+     */
+    private fun sendReaderHeartbeat() {
+        try {
+            if (connectedTapToPayReader != null && Terminal.isInitialized()) {
+                val currentReader = Terminal.getInstance().connectedReader
+                if (currentReader != null) {
+                    Log.d(TAG, "💓 Heartbeat: Reader ${currentReader.id} is alive")
+                    
+                    // Update last connection time
+                    sharedPrefs.edit()
+                        .putLong(KEY_LAST_CONNECTION_TIME, System.currentTimeMillis())
+                        .apply()
+                } else {
+                    Log.w(TAG, "⚠️ Heartbeat: Reader connection lost, attempting reconnection...")
+                    val storedSerialNumber = getStoredReaderSerialNumber()
+                    val storedLocationId = sharedPrefs.getString(KEY_READER_LOCATION_ID, "tml_GKsXoQ8u9cFZJF")
+                    if (storedSerialNumber != null && storedLocationId != null) {
+                        attemptReaderReconnection(storedSerialNumber, storedLocationId)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending reader heartbeat", e)
         }
     }
     
