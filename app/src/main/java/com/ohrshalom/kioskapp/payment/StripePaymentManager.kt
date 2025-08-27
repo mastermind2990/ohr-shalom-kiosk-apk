@@ -492,8 +492,11 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "Connecting Tap to Pay reader ${reader.id} to location: $locationId")
             
-            // Use correct 4.6.0 API - ConnectionConfiguration.TapToPayConnectionConfiguration with locationId
-            val connectionConfig = ConnectionConfiguration.TapToPayConnectionConfiguration(locationId)
+            // Use correct 4.6.0 API - ConnectionConfiguration.TapToPayConnectionConfiguration with required parameters
+            val connectionConfig = ConnectionConfiguration.TapToPayConnectionConfiguration(
+                locationId = locationId,
+                tapToPayReaderListener = tapToPayReaderListener
+            )
             
             Terminal.getInstance().connectReader(
                 reader,
