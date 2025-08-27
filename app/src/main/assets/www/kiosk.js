@@ -1575,7 +1575,7 @@ class OhrShalomKiosk {
                             const response = await fetch(tokenEndpoint, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ test: true })
+                                body: JSON.stringify({})
                             })
                             
                             if (response.ok || response.status === 404) {
