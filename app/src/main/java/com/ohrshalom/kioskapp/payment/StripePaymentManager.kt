@@ -8,9 +8,13 @@ import com.stripe.stripeterminal.external.callable.Callback
 import com.stripe.stripeterminal.external.callable.Cancelable
 import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
 import com.stripe.stripeterminal.external.callable.ConnectionTokenProvider
+import com.stripe.stripeterminal.external.callable.DiscoveryListener
 import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
+import com.stripe.stripeterminal.external.callable.ReaderCallback
 import com.stripe.stripeterminal.external.callable.TerminalListener
+import com.stripe.stripeterminal.external.models.ConnectionConfiguration
 import com.stripe.stripeterminal.external.models.ConnectionTokenException
+import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
 import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.Reader
@@ -322,17 +326,79 @@ class StripePaymentManager(private val context: Context) {
      */
     private fun discoverTapToPayReader(locationId: String) {
         try {
-            Log.d(TAG, "Configuring Tap to Pay for location: $locationId")
+            Log.d(TAG, "Starting Tap to Pay reader discovery for location: $locationId")
             
-            // For SDK 4.6.0, we'll use a simpler approach
-            // The Terminal is initialized and can process payments directly
-            // without explicit reader discovery for Tap to Pay on Android
+            // According to Stripe docs: we need to discover and connect the Tap to Pay reader
+            // Step 1: Discover readers with TapToPayDiscoveryConfiguration
+            val discoveryConfig = com.stripe.stripeterminal.external.models.DiscoveryConfiguration
+                .TapToPayDiscoveryConfiguration.Builder()
+                .setIsSimulated(false) // Use real hardware for production
+                .build()
             
-            Log.d(TAG, "Tap to Pay configuration completed for location: $locationId")
-            Log.d(TAG, "Terminal is ready to process NFC payments")
+            Terminal.getInstance().discoverReaders(
+                discoveryConfig,
+                object : com.stripe.stripeterminal.external.callable.DiscoveryListener {
+                    override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
+                        Log.d(TAG, "Discovered ${readers.size} Tap to Pay readers")
+                        
+                        if (readers.isNotEmpty()) {
+                            val reader = readers.first()
+                            Log.d(TAG, "Found Tap to Pay reader: ${reader.id}")
+                            connectTapToPayReader(reader, locationId)
+                        } else {
+                            Log.w(TAG, "No Tap to Pay readers discovered")
+                        }
+                    }
+                },
+                object : Callback {
+                    override fun onSuccess() {
+                        Log.d(TAG, "Tap to Pay reader discovery completed successfully")
+                    }
+                    
+                    override fun onFailure(e: TerminalException) {
+                        Log.e(TAG, "Tap to Pay reader discovery failed: ${e.errorMessage}")
+                    }
+                }
+            )
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error configuring Tap to Pay", e)
+            Log.e(TAG, "Error during Tap to Pay reader discovery", e)
+        }
+    }
+    
+    /**
+     * Connect discovered Tap to Pay reader to the specified location
+     */
+    private fun connectTapToPayReader(reader: Reader, locationId: String) {
+        try {
+            Log.d(TAG, "Connecting Tap to Pay reader ${reader.id} to location: $locationId")
+            
+            // Step 2: Connect reader with TapToPayConnectionConfiguration
+            val connectionConfig = com.stripe.stripeterminal.external.models.ConnectionConfiguration
+                .TapToPayConnectionConfiguration.Builder(locationId)
+                .build()
+            
+            Terminal.getInstance().connectReader(
+                reader,
+                connectionConfig,
+                object : com.stripe.stripeterminal.external.callable.ReaderCallback {
+                    override fun onSuccess(connectedReader: Reader) {
+                        Log.d(TAG, "✅ Tap to Pay reader connected successfully!")
+                        Log.d(TAG, "Reader ID: ${connectedReader.id}")
+                        Log.d(TAG, "Location: ${connectedReader.location}")
+                        Log.d(TAG, "Device Type: ${connectedReader.deviceType}")
+                        Log.d(TAG, "🎉 Tablet is now registered as Terminal reader for location: $locationId")
+                    }
+                    
+                    override fun onFailure(e: TerminalException) {
+                        Log.e(TAG, "❌ Failed to connect Tap to Pay reader: ${e.errorMessage}")
+                        Log.e(TAG, "Error code: ${e.errorCode}")
+                    }
+                }
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error connecting Tap to Pay reader", e)
         }
     }
     

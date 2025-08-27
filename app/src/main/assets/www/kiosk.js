@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.8.3-terminal-fixed'
+        this.version = '1.8.4-terminal-compliant'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
