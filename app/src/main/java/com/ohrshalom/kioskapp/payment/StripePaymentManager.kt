@@ -8,9 +8,14 @@ import com.stripe.stripeterminal.external.callable.Callback
 import com.stripe.stripeterminal.external.callable.Cancelable
 import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
 import com.stripe.stripeterminal.external.callable.ConnectionTokenProvider
+import com.stripe.stripeterminal.external.callable.DiscoveryListener
 import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
+import com.stripe.stripeterminal.external.callable.ReaderCallback
 import com.stripe.stripeterminal.external.callable.TerminalListener
+import com.stripe.stripeterminal.external.models.ConnectionConfiguration
+import com.stripe.stripeterminal.external.models.ConnectionStatus
 import com.stripe.stripeterminal.external.models.ConnectionTokenException
+import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
 import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.Reader
@@ -55,7 +60,13 @@ class StripePaymentManager(private val context: Context) {
                         }
                     },
                     listener = object : TerminalListener {
-                        // Empty implementation - will add correct methods after compilation succeeds
+                        override fun onUnexpectedReaderDisconnect(reader: Reader) {
+                            Log.w(TAG, "Unexpected reader disconnect: ${reader.id}")
+                        }
+                        
+                        override fun onConnectionStatusChange(status: com.stripe.stripeterminal.external.models.ConnectionStatus) {
+                            Log.d(TAG, "Terminal connection status changed: $status")
+                        }
                     }
                 )
                 
@@ -303,19 +314,92 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "Initializing Tap to Pay reader for location: $locationId")
             
-            // In Stripe Terminal SDK 4.6.0, for Tap to Pay on Android,
-            // the device itself becomes the reader. We need to register
-            // this device as a terminal reader for the specified location.
+            if (!Terminal.isInitialized()) {
+                Log.e(TAG, "Terminal not initialized, cannot discover readers")
+                return
+            }
             
-            // This would typically involve:
-            // 1. Device registration with Stripe Terminal
-            // 2. Location assignment
-            // 3. Reader capability verification
-            
-            Log.d(TAG, "Tap to Pay reader initialization completed for location: $locationId")
+            // For Tap to Pay on Android, we need to discover the local mobile reader
+            // and connect it to the specified location
+            discoverTapToPayReader(locationId)
             
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Tap to Pay reader", e)
+        }
+    }
+    
+    /**
+     * Discover and connect to Tap to Pay reader
+     */
+    private fun discoverTapToPayReader(locationId: String) {
+        try {
+            Log.d(TAG, "Starting Tap to Pay reader discovery...")
+            
+            // Import required classes for discovery
+            val discoveryConfig = com.stripe.stripeterminal.external.models.DiscoveryConfiguration.LocalMobileDiscoveryConfiguration.Builder()
+                .setIsSimulated(false) // Use real hardware
+                .build()
+            
+            Terminal.getInstance().discoverReaders(
+                discoveryConfig,
+                object : com.stripe.stripeterminal.external.callable.DiscoveryListener {
+                    override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
+                        Log.d(TAG, "Discovered ${readers.size} readers")
+                        
+                        // For Tap to Pay, we expect exactly one local mobile reader
+                        if (readers.isNotEmpty()) {
+                            val reader = readers.first()
+                            Log.d(TAG, "Found Tap to Pay reader: ${reader.deviceType} - ${reader.id}")
+                            connectToReader(reader, locationId)
+                        } else {
+                            Log.w(TAG, "No Tap to Pay readers discovered")
+                        }
+                    }
+                },
+                object : Callback {
+                    override fun onSuccess() {
+                        Log.d(TAG, "Reader discovery completed successfully")
+                    }
+                    
+                    override fun onFailure(e: TerminalException) {
+                        Log.e(TAG, "Reader discovery failed: ${e.errorMessage}")
+                    }
+                }
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during reader discovery", e)
+        }
+    }
+    
+    /**
+     * Connect to discovered reader with location
+     */
+    private fun connectToReader(reader: Reader, locationId: String) {
+        try {
+            Log.d(TAG, "Connecting to reader: ${reader.id} for location: $locationId")
+            
+            val connectionConfig = com.stripe.stripeterminal.external.models.ConnectionConfiguration.LocalMobileConnectionConfiguration.Builder(locationId)
+                .build()
+            
+            Terminal.getInstance().connectLocalMobileReader(
+                reader,
+                connectionConfig,
+                object : com.stripe.stripeterminal.external.callable.ReaderCallback {
+                    override fun onSuccess(connectedReader: Reader) {
+                        Log.d(TAG, "Successfully connected to Tap to Pay reader: ${connectedReader.id}")
+                        Log.d(TAG, "Reader location: ${connectedReader.location?.displayName ?: "Unknown"}")
+                        Log.d(TAG, "Reader status: ${connectedReader.status}")
+                    }
+                    
+                    override fun onFailure(e: TerminalException) {
+                        Log.e(TAG, "Failed to connect to reader: ${e.errorMessage}")
+                    }
+                }
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error connecting to reader", e)
         }
     }
 

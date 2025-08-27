@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.8.1-terminal-enhanced'
+        this.version = '1.8.2-terminal-connected'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -786,12 +786,20 @@ class OhrShalomKiosk {
                     terminalText = 'ERROR'
                     terminalClass = 'text-red-600'
                 } else if (status.initialized) {
-                    terminalText = 'INITIALIZED'
-                    terminalClass = 'text-green-600'
+                    if (status.connectedReader) {
+                        terminalText = 'CONNECTED'
+                        terminalClass = 'text-green-600'
+                    } else {
+                        terminalText = 'INITIALIZED'
+                        terminalClass = 'text-yellow-600'
+                    }
                 }
                 
                 document.getElementById('adminTerminalStatus').textContent = terminalText
                 document.getElementById('adminTerminalStatus').className = terminalClass
+                
+                // Log detailed status for debugging
+                console.log('Terminal Status:', status)
                 
             } catch (e) {
                 console.error('Failed to get Terminal status:', e)

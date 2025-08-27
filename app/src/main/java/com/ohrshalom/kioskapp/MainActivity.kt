@@ -671,8 +671,22 @@ class MainActivity : AppCompatActivity() {
         fun getStripeTerminalStatus(): String {
             return try {
                 val isInitialized = Terminal.isInitialized()
+                var connectedReader: String? = null
+                var readerLocation: String? = null
+                
+                if (isInitialized) {
+                    val terminal = Terminal.getInstance()
+                    val reader = terminal.connectedReader
+                    if (reader != null) {
+                        connectedReader = "${reader.deviceType} - ${reader.id}"
+                        readerLocation = reader.location?.displayName ?: reader.location?.id
+                    }
+                }
+                
                 val status = mapOf(
                     "initialized" to isInitialized,
+                    "connectedReader" to connectedReader,
+                    "readerLocation" to readerLocation,
                     "timestamp" to System.currentTimeMillis()
                 )
                 gson.toJson(status)
