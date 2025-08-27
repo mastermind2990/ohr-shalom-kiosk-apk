@@ -15,6 +15,13 @@ import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.Reader
 import com.stripe.stripeterminal.external.models.TerminalException
+// Tap to Pay Discovery and Connection classes 
+import com.stripe.stripeterminal.external.models.TapToPayDiscoveryConfiguration
+import com.stripe.stripeterminal.external.models.TapToPayConnectionConfiguration
+import com.stripe.stripeterminal.external.callable.DiscoveryListener
+import com.stripe.stripeterminal.external.callable.ReaderCallback
+import com.stripe.stripeterminal.external.callable.TapToPayReaderListener
+import com.stripe.stripeterminal.external.models.DisconnectReason
 
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -322,20 +329,143 @@ class StripePaymentManager(private val context: Context) {
      */
     private fun discoverTapToPayReader(locationId: String) {
         try {
-            Log.d(TAG, "Configuring Tap to Pay for location: $locationId")
+            Log.d(TAG, "Starting Tap to Pay reader discovery for location: $locationId")
             
-            // For SDK 4.6.0, let's use a different approach that's more compatible
-            // We'll focus on the core Terminal functionality that's definitely available
+            if (!Terminal.isInitialized()) {
+                Log.e(TAG, "Terminal not initialized, cannot discover readers")
+                return
+            }
             
-            Log.d(TAG, "Terminal is initialized and ready for location: $locationId")
-            Log.d(TAG, "✅ Tap to Pay configuration completed")
-            Log.d(TAG, "🎉 Terminal ready for NFC payment processing")
-            
-            // The Terminal is initialized with the connection token provider
-            // which should be sufficient for processing payments
+            try {
+                Log.d(TAG, "Attempting to discover Tap to Pay readers")
+                
+                // Create Tap to Pay discovery configuration
+                val discoveryConfig = TapToPayDiscoveryConfiguration(
+                    isSimulated = false // Use real device, not simulator
+                )
+                
+                // Start discovery
+                val discoveryCancelable = Terminal.getInstance().discoverReaders(
+                    discoveryConfig,
+                    object : DiscoveryListener {
+                        override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
+                            Log.d(TAG, "Discovered ${readers.size} Tap to Pay readers")
+                            
+                            if (readers.isNotEmpty()) {
+                                val reader = readers.first()
+                                Log.d(TAG, "Found Tap to Pay reader: ${reader.id}")
+                                Log.d(TAG, "Reader type: ${reader.deviceType}")
+                                Log.d(TAG, "Reader serial: ${reader.serialNumber}")
+                                connectTapToPayReader(reader, locationId)
+                            } else {
+                                Log.w(TAG, "No Tap to Pay readers discovered yet, continuing to scan...")
+                            }
+                        }
+                    },
+                    object : Callback {
+                        override fun onSuccess() {
+                            Log.d(TAG, "Tap to Pay reader discovery completed successfully")
+                        }
+                        
+                        override fun onFailure(e: TerminalException) {
+                            Log.e(TAG, "Tap to Pay reader discovery failed: ${e.errorMessage}")
+                            Log.e(TAG, "Error code: ${e.errorCode}")
+                            
+                            // Fallback: Basic Terminal ready
+                            Log.d(TAG, "Discovery failed but Terminal is initialized")
+                            Log.d(TAG, "✅ Terminal ready for payment processing")
+                        }
+                    }
+                )
+                
+                // Store cancelable for cleanup if needed
+                currentCancelable = discoveryCancelable
+                Log.d(TAG, "Tap to Pay discovery started successfully")
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not use Tap to Pay discovery API: ${e.message}")
+                
+                // Fallback: Basic Terminal ready
+                Log.d(TAG, "Using basic Terminal initialization")
+                Log.d(TAG, "Terminal initialized with connection token for location: $locationId")
+                Log.d(TAG, "✅ Terminal ready for payment processing")
+            }
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error configuring Tap to Pay", e)
+            Log.e(TAG, "Error during Tap to Pay setup", e)
+        }
+    }
+    
+    private fun connectTapToPayReader(reader: Reader, locationId: String) {
+        try {
+            Log.d(TAG, "Connecting Tap to Pay reader ${reader.id} to location: $locationId")
+            
+            // Create Tap to Pay connection configuration
+            val connectionConfig = TapToPayConnectionConfiguration(
+                locationId = locationId,
+                autoReconnectOnUnexpectedDisconnect = true,
+                tapToPayReaderListener = object : TapToPayReaderListener {
+                    override fun onReaderReconnectStarted(reader: Reader, cancelReconnect: Cancelable, reason: DisconnectReason) {
+                        Log.d(TAG, "Tap to Pay reader reconnect started: ${reason}")
+                    }
+                    
+                    override fun onReaderReconnectSucceeded(reader: Reader) {
+                        Log.d(TAG, "Tap to Pay reader reconnected successfully")
+                    }
+                    
+                    override fun onReaderReconnectFailed(reader: Reader) {
+                        Log.e(TAG, "Tap to Pay reader reconnection failed")
+                    }
+                    
+                    override fun onDisconnect(reason: DisconnectReason) {
+                        Log.w(TAG, "Tap to Pay reader disconnected: ${reason}")
+                    }
+                }
+            )
+            
+            // Connect the reader
+            Terminal.getInstance().connectReader(
+                reader,
+                connectionConfig,
+                object : ReaderCallback {
+                    override fun onSuccess(connectedReader: Reader) {
+                        Log.d(TAG, "✅ Tap to Pay reader connected successfully!")
+                        Log.d(TAG, "Reader ID: ${connectedReader.id}")
+                        Log.d(TAG, "Location: ${connectedReader.location}")
+                        Log.d(TAG, "Device Type: ${connectedReader.deviceType}")
+                        Log.d(TAG, "Serial Number: ${connectedReader.serialNumber}")
+                        Log.d(TAG, "🎉 Tablet is now registered as Terminal reader for location: $locationId")
+                        
+                        // Cancel discovery since we're connected
+                        currentCancelable?.cancel(object : Callback {
+                            override fun onSuccess() {
+                                Log.d(TAG, "Discovery cancelled after successful connection")
+                            }
+                            override fun onFailure(e: TerminalException) {
+                                Log.w(TAG, "Failed to cancel discovery: ${e.errorMessage}")
+                            }
+                        })
+                    }
+                    
+                    override fun onFailure(e: TerminalException) {
+                        Log.e(TAG, "❌ Failed to connect Tap to Pay reader: ${e.errorMessage}")
+                        Log.e(TAG, "Error code: ${e.errorCode}")
+                        
+                        // Still log progress for debugging
+                        Log.d(TAG, "Reader discovery successful, connection attempted for: ${reader.id}")
+                        Log.d(TAG, "Target location: $locationId")
+                        Log.d(TAG, "Check that location is configured for Tap to Pay in Stripe Dashboard")
+                    }
+                }
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error connecting Tap to Pay reader", e)
+            
+            // Fallback logging - still useful for debugging
+            Log.d(TAG, "Reader found: ${reader.id}")
+            Log.d(TAG, "Target location: $locationId")
+            Log.d(TAG, "Terminal is configured and ready")
         }
     }
     

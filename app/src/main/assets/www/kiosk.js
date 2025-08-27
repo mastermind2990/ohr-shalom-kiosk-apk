@@ -1,10 +1,10 @@
 // Ohr Shalom Donation Kiosk - Android WebView Integration
-// Version: 1.1-hebcal-debug
-// Build: August 26, 2025
+// Version: 1.8.7-terminal-discovery-api
+// Build: August 27, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.8.5-terminal-stable'
-        this.buildDate = '2025-08-26'
+        this.version = '1.8.7-terminal-discovery-api'
+        this.buildDate = '2025-08-27'
         // Configuration with Davenport, FL defaults
         this.config = {
             adminPin: '12345',

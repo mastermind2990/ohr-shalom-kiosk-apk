@@ -11,8 +11,8 @@ android {
         applicationId "com.ohrshalom.kioskapp"
         minSdk 26
         targetSdk 34
-        versionCode 13
-        versionName "1.8.5-terminal-stable"
+        versionCode 15
+        versionName "1.8.7-terminal-discovery-api"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -29,12 +29,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = '21'
+        jvmTarget = '17'
     }
 
     buildFeatures {
@@ -52,10 +52,10 @@ android {
     }
 }
 
-// Java toolchain configuration for Java 21 compatibility
+// Java toolchain configuration for Java 17 compatibility
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -71,11 +71,11 @@ dependencies {
     // WebView support
     implementation 'androidx.webkit:webkit:1.12.1'
 
-    // Stripe Terminal SDK for NFC/Tap to Pay - Official latest version for Tap to Pay
+    // Stripe Terminal SDK for NFC/Tap to Pay - Complete SDK with Tap to Pay support
+    implementation 'com.stripe:stripeterminal:4.6.0'
     implementation 'com.stripe:stripeterminal-taptopay:4.6.0'
     implementation 'com.stripe:stripeterminal-core:4.6.0'
-    // Note: stripeterminal-localmobile may not be publicly available
-    // Using main stripeterminal SDK which includes local mobile functionality
+    // Note: Using latest available version with all required artifacts for Tap to Pay functionality
     
     // Stripe Android SDK (for fallback payments)
     implementation 'com.stripe:stripe-android:20.51.0'
