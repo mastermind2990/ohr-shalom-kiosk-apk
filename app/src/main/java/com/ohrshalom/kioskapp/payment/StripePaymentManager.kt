@@ -3,8 +3,7 @@ package com.ohrshalom.kioskapp.payment
 import android.content.Context
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
-import com.stripe.stripeterminal.TapToPay
-// Stripe Terminal 4.6.0 Tap to Pay - Correct API imports
+// Stripe Terminal 4.6.0 Tap to Pay imports
 import com.stripe.stripeterminal.external.callable.Callback
 import com.stripe.stripeterminal.external.callable.Cancelable
 import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
@@ -14,12 +13,15 @@ import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
 import com.stripe.stripeterminal.external.callable.ReaderCallback
 import com.stripe.stripeterminal.external.callable.TerminalListener
 import com.stripe.stripeterminal.external.callable.TapToPayReaderListener
+import com.stripe.stripeterminal.external.models.ConnectionConfiguration
 import com.stripe.stripeterminal.external.models.ConnectionTokenException
+import com.stripe.stripeterminal.external.models.DeviceType
 import com.stripe.stripeterminal.external.models.DisconnectReason
+import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
 import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.Reader
-
+import com.stripe.stripeterminal.external.models.ReaderSupportResult
 import com.stripe.stripeterminal.external.models.TerminalException
 
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -75,11 +77,7 @@ class StripePaymentManager(private val context: Context) {
     
     private fun initializeStripeTerminal() {
         try {
-            // Skip initialization if running in the Tap to Pay process
-            if (TapToPay.isInTapToPayProcess()) {
-                Log.d(TAG, "Running in Tap to Pay process, skipping Terminal initialization")
-                return
-            }
+            // Initialize Terminal if not already initialized
             
             if (!Terminal.isInitialized()) {
                 Terminal.initTerminal(
@@ -297,21 +295,25 @@ class StripePaymentManager(private val context: Context) {
      */
     fun isTapToPaySupported(): Boolean {
         return try {
-            if (TapToPay.isInTapToPayProcess()) {
-                Log.d(TAG, "Currently in Tap to Pay process")
-                return true
-            }
-            
             // Check if Terminal is initialized first
             if (!Terminal.isInitialized()) {
                 Log.w(TAG, "Terminal not initialized, cannot check Tap to Pay support")
                 return false
             }
             
+            // Create discovery configuration for support check
+            val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            val discoveryConfig = DiscoveryConfiguration.TapToPayDiscoveryConfiguration(isDebuggable)
+            
             // Use official Stripe method to check device capability
-            val supported = Terminal.getInstance().supportsReadersOfType(com.stripe.stripeterminal.external.models.DeviceType.TAP_TO_PAY)
-            Log.d(TAG, "Device Tap to Pay support: $supported")
-            return supported
+            val supportResult = Terminal.getInstance().supportsReadersOfType(
+                DeviceType.TAP_TO_PAY_DEVICE,
+                discoveryConfig
+            )
+            
+            val isSupported = supportResult.isSupported
+            Log.d(TAG, "Device Tap to Pay support: $isSupported")
+            return isSupported
         } catch (e: Exception) {
             Log.e(TAG, "Error checking Tap to Pay support", e)
             false
