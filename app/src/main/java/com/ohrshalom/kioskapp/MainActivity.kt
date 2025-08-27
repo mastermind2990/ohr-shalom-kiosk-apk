@@ -629,6 +629,16 @@ class MainActivity : AppCompatActivity() {
                 "error: ${e.message}"
             }
         }
+        
+        @JavascriptInterface
+        fun getTerminalStatus(): String {
+            return try {
+                paymentManager.getTerminalStatus()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting terminal status", e)
+                "Error: ${e.message}"
+            }
+        }
     }
 
     

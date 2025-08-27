@@ -1,3 +1,17 @@
+# Stripe Terminal Android Tablet Registration Guide
+
+## 🎯 **The Problem**
+Your Android tablet detected the NFC tap (audio feedback) but isn't registered as a Stripe Terminal reader. This means the payment wasn't processed through Stripe.
+
+## 🔧 **Solution Steps**
+
+### **Step 1: Update Android StripePaymentManager**
+
+The current Android code uses simulation mode. We need to update it to use real Stripe Terminal integration.
+
+Replace the contents of `app/src/main/java/com/ohrshalom/kioskapp/payment/StripePaymentManager.kt` with this updated version:
+
+```kotlin
 package com.ohrshalom.kioskapp.payment
 
 import android.content.Context
@@ -101,6 +115,128 @@ class StripePaymentManager(private val context: Context) {
     }
     
     /**
+     * Update Stripe configuration and connect reader
+     */
+    fun updateConfiguration(
+        publishableKey: String,
+        tokenEndpoint: String?,
+        locationId: String?,
+        isLiveMode: Boolean
+    ): Boolean {
+        return try {
+            Log.d(TAG, "Updating Stripe configuration - Live mode: $isLiveMode")
+            
+            this.connectionTokenEndpoint = tokenEndpoint
+            this.locationId = locationId
+            
+            // If we have all required info, try to discover and connect reader
+            if (!tokenEndpoint.isNullOrBlank() && !locationId.isNullOrBlank()) {
+                discoverAndConnectReader()
+            }
+            
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update Stripe configuration", e)
+            false
+        }
+    }
+    
+    private fun discoverAndConnectReader() {
+        try {
+            Log.d(TAG, "Discovering local mobile readers...")
+            
+            val config = DiscoveryConfiguration.LocalMobileDiscoveryConfiguration.Builder()
+                .setSimulated(false) // Set to false for real hardware
+                .build()
+            
+            Terminal.getInstance().discoverReaders(config, object : DiscoveryListener {
+                override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
+                    Log.d(TAG, "Discovered ${readers.size} readers")
+                    
+                    if (readers.isNotEmpty()) {
+                        val reader = readers[0] // Use first available reader
+                        connectToReader(reader)
+                    } else {
+                        Log.w(TAG, "No readers discovered - creating local mobile reader")
+                        connectToLocalMobileReader()
+                    }
+                }
+            }, object : Callback {
+                override fun onSuccess() {
+                    Log.d(TAG, "Reader discovery completed")
+                }
+                
+                override fun onFailure(exception: TerminalException) {
+                    Log.e(TAG, "Reader discovery failed", exception)
+                }
+            })
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during reader discovery", e)
+        }
+    }
+    
+    private fun connectToReader(reader: Reader) {
+        try {
+            Log.d(TAG, "Connecting to reader: ${reader.id}")
+            
+            val locationId = this.locationId
+            if (locationId.isNullOrBlank()) {
+                Log.e(TAG, "Location ID not configured")
+                return
+            }
+            
+            val config = ConnectionConfiguration.LocalMobileConnectionConfiguration.Builder()
+                .setLocationId(locationId)
+                .build()
+            
+            Terminal.getInstance().connectLocalMobileReader(reader, config, object : ReaderCallback {
+                override fun onSuccess(connectedReader: Reader) {
+                    Log.d(TAG, "Successfully connected to reader: ${connectedReader.id}")
+                    this@StripePaymentManager.connectedReader = connectedReader
+                }
+                
+                override fun onFailure(exception: TerminalException) {
+                    Log.e(TAG, "Failed to connect to reader", exception)
+                }
+            })
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error connecting to reader", e)
+        }
+    }
+    
+    private fun connectToLocalMobileReader() {
+        try {
+            Log.d(TAG, "Connecting to local mobile reader (tablet)")
+            
+            val locationId = this.locationId
+            if (locationId.isNullOrBlank()) {
+                Log.e(TAG, "Location ID not configured for local mobile reader")
+                return
+            }
+            
+            val config = ConnectionConfiguration.LocalMobileConnectionConfiguration.Builder()
+                .setLocationId(locationId)
+                .build()
+            
+            Terminal.getInstance().connectLocalMobileReader(config, object : ReaderCallback {
+                override fun onSuccess(reader: Reader) {
+                    Log.d(TAG, "Successfully connected local mobile reader: ${reader.id}")
+                    this@StripePaymentManager.connectedReader = reader
+                }
+                
+                override fun onFailure(exception: TerminalException) {
+                    Log.e(TAG, "Failed to connect local mobile reader", exception)
+                }
+            })
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error connecting to local mobile reader", e)
+        }
+    }
+    
+    /**
      * Process real NFC payment using Stripe Terminal
      */
     suspend fun processNfcPayment(amountCents: Int, currency: String, email: String?): Boolean {
@@ -187,7 +323,6 @@ class StripePaymentManager(private val context: Context) {
                 .setCurrency(currency)
                 .apply {
                     email?.let { setReceiptEmail(it) }
-                    // Note: PaymentMethodTypes are automatically set for Terminal payments
                 }
                 .build()
             
@@ -228,9 +363,27 @@ class StripePaymentManager(private val context: Context) {
         }
     }
     
-    /**
-     * Cancel current payment if in progress
-     */
+    fun isNfcAvailable(): Boolean {
+        return try {
+            val nfcAdapter = android.nfc.NfcAdapter.getDefaultAdapter(context)
+            nfcAdapter != null && nfcAdapter.isEnabled
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking NFC availability", e)
+            false
+        }
+    }
+    
+    fun getPaymentStatus(): String {
+        return when {
+            currentPaymentIntent != null -> "processing"
+            connectedReader != null -> "ready"
+            Terminal.isInitialized() -> "initialized"
+            else -> "not_initialized"
+        }
+    }
+    
+    fun getCurrentPaymentIntent(): PaymentIntent? = currentPaymentIntent
+    
     fun cancelCurrentPayment() {
         try {
             currentCancelable?.cancel(object : Callback {
@@ -249,101 +402,6 @@ class StripePaymentManager(private val context: Context) {
         }
     }
     
-    /**
-     * Check if NFC is available on the device
-     */
-    fun isNfcAvailable(): Boolean {
-        return try {
-            val nfcAdapter = android.nfc.NfcAdapter.getDefaultAdapter(context)
-            nfcAdapter != null && nfcAdapter.isEnabled
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking NFC availability", e)
-            false
-        }
-    }
-    
-    /**
-     * Get payment status information
-     */
-    fun getPaymentStatus(): String {
-        return when {
-            currentPaymentIntent != null -> "processing"
-            Terminal.isInitialized() -> "ready"
-            else -> "not_initialized"
-        }
-    }
-    
-    /**
-     * Get current payment intent if any
-     */
-    fun getCurrentPaymentIntent(): PaymentIntent? {
-        return currentPaymentIntent
-    }
-    
-    /**
-     * Update Stripe configuration and connect reader
-     */
-    fun updateConfiguration(
-        publishableKey: String,
-        tokenEndpoint: String?,
-        locationId: String?,
-        isLiveMode: Boolean
-    ): Boolean {
-        return try {
-            Log.d(TAG, "Updating Stripe configuration - Live mode: $isLiveMode")
-            
-            this.connectionTokenEndpoint = tokenEndpoint
-            this.locationId = locationId
-            
-            Log.d(TAG, "Stripe configuration updated:")
-            Log.d(TAG, "  - Publishable Key: ${publishableKey.take(10)}...")
-            Log.d(TAG, "  - Token Endpoint: $tokenEndpoint")
-            Log.d(TAG, "  - Location ID: $locationId")
-            Log.d(TAG, "  - Live Mode: $isLiveMode")
-            
-            // If we have all required info, try to discover and connect reader
-            if (!tokenEndpoint.isNullOrBlank() && !locationId.isNullOrBlank()) {
-                discoverAndConnectReader()
-            }
-            
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to update Stripe configuration", e)
-            false
-        }
-    }
-    
-    private fun discoverAndConnectReader() {
-        try {
-            Log.d(TAG, "Connecting to local mobile reader (tablet)...")
-            
-            val locationId = this.locationId
-            if (locationId.isNullOrBlank()) {
-                Log.e(TAG, "Location ID not configured for local mobile reader")
-                return
-            }
-            
-            val config = ConnectionConfiguration.LocalMobileConnectionConfiguration.Builder()
-                .setLocationId(locationId)
-                .build()
-            
-            Terminal.getInstance().connectLocalMobileReader(config, object : ReaderCallback {
-                override fun onSuccess(reader: Reader) {
-                    Log.d(TAG, "Successfully connected local mobile reader: ${reader.id}")
-                    connectedReader = reader
-                }
-                
-                override fun onFailure(exception: TerminalException) {
-                    Log.e(TAG, "Failed to connect local mobile reader: ${exception.errorMessage}")
-                    Log.e(TAG, "Error code: ${exception.errorCode}")
-                }
-            })
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error connecting to local mobile reader", e)
-        }
-    }
-
     fun cleanup() {
         try {
             cancelCurrentPayment()
@@ -356,3 +414,69 @@ class StripePaymentManager(private val context: Context) {
         }
     }
 }
+```
+
+### **Step 2: Update Android Dependencies**
+
+Add this dependency to `app/build.gradle` (if not already present):
+
+```gradle
+implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+```
+
+### **Step 3: Update MainActivity Android Interface**
+
+Add this method to the `AndroidJavaScriptInterface` class in `MainActivity.kt`:
+
+```kotlin
+@JavascriptInterface
+fun getTerminalStatus(): String {
+    return try {
+        paymentManager.getTerminalStatus()
+    } catch (e: Exception) {
+        "Error: ${e.message}"
+    }
+}
+```
+
+## 🧪 **Testing Steps**
+
+### **Step 1: Update Android App Configuration**
+
+1. **Build and install** the updated Android app
+2. **Open admin interface** (tap logo 5 times, PIN: 12345)
+3. **Configure Stripe settings:**
+   - **Publishable Key:** Your live `pk_live_...` key
+   - **Connection Token Endpoint:** `http://161.35.140.12/api/stripe/connection_token`
+   - **Location ID:** Your Stripe Terminal location ID (`tml_...`)
+   - **Environment:** Live Mode
+
+### **Step 2: Test Terminal Registration**
+
+1. **Click "Test Terminal"** in admin interface
+2. **Should show:** "Ready (Reader: tml_...)" or connection status
+3. **Check logs:** `adb logcat | grep StripePaymentManager`
+
+### **Step 3: Test Real Payment**
+
+1. **Select amount** (e.g., $5)
+2. **Click "Tap to Pay"**
+3. **Tap credit card** to tablet
+4. **Check Stripe Dashboard** for actual transaction
+
+## 🎯 **Expected Results**
+
+After this update:
+- ✅ **Android tablet will register** as a Stripe Terminal reader
+- ✅ **Real payments will process** through Stripe
+- ✅ **Transactions will appear** in your Stripe Dashboard
+- ✅ **NFC taps will create** actual payment intents
+
+## 🚨 **Important Notes**
+
+1. **Location ID Required:** Make sure you have the correct `tml_...` location ID
+2. **Live Mode:** Ensure your keys and location match (test vs live)
+3. **NFC Permissions:** Android app needs NFC permissions enabled
+4. **Network Access:** Tablet needs internet to reach your backend
+
+Let me know if you need help getting the Location ID or implementing any of these updates!

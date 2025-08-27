@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.5-stripe-credentials'
+        this.version = '1.6-terminal-integration'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -1435,11 +1435,25 @@ class OhrShalomKiosk {
         
         if (window.AndroidInterface && window.AndroidInterface.getNfcStatus) {
             const nfcStatus = window.AndroidInterface.getNfcStatus()
+            let terminalStatus = 'Unknown'
             
-            resultsDiv.innerHTML = `Stripe Terminal Test:\nNFC Hardware: ${nfcStatus}\nTerminal Ready: ${nfcStatus === 'enabled'}`
+            // Get detailed terminal status if available
+            if (window.AndroidInterface.getTerminalStatus) {
+                terminalStatus = window.AndroidInterface.getTerminalStatus()
+            }
+            
+            resultsDiv.innerHTML = `Stripe Terminal Test:\nNFC Hardware: ${nfcStatus}\nTerminal Status: ${terminalStatus}`
             
             if (nfcStatus === 'enabled') {
-                resultsDiv.innerHTML += '\n✅ Terminal is ready for payments\n💡 Use "Enable Test Mode" for safe testing'
+                if (terminalStatus.includes('Ready')) {
+                    resultsDiv.innerHTML += '\n✅ Terminal is connected and ready for payments!'
+                } else if (terminalStatus.includes('not connected')) {
+                    resultsDiv.innerHTML += '\n⚠️ Terminal not connected - check configuration'
+                } else if (terminalStatus.includes('not configured')) {
+                    resultsDiv.innerHTML += '\n⚠️ Terminal not configured - add Stripe credentials'
+                } else {
+                    resultsDiv.innerHTML += '\n⚠️ Terminal status: ' + terminalStatus
+                }
             } else if (nfcStatus === 'disabled') {
                 resultsDiv.innerHTML += '\n❌ NFC is disabled - enable in Android settings\n⚙️ Go to Settings > Connected devices > NFC'
             } else {
