@@ -1,0 +1,44 @@
+{
+  "name": "ohr-shalom-kiosk-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Ohr Shalom Donation Kiosk - Stripe Terminal Integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "setup": "chmod +x scripts/setup-droplet.sh && ./scripts/setup-droplet.sh",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop ohr-shalom-backend",
+    "pm2:restart": "pm2 restart ohr-shalom-backend",
+    "pm2:logs": "pm2 logs ohr-shalom-backend",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "stripe",
+    "terminal",
+    "kiosk",
+    "donation",
+    "nfc",
+    "payment"
+  ],
+  "author": "Ohr Shalom",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "stripe": "^16.12.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.4.5",
+    "express-rate-limit": "^7.4.0",
+    "morgan": "^1.10.0",
+    "compression": "^1.7.4",
+    "express-validator": "^7.2.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
