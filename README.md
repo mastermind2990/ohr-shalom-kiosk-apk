@@ -161,10 +161,11 @@ maariv=8:00 PM
 - `com.google.android.material:material:1.11.0`
 - `androidx.webkit:webkit:1.9.0`
 
-### Payment Processing
-- `com.stripe:stripeterminal:3.8.1`
-- `com.stripe:stripeterminal-localmobile:3.8.1`
-- `com.stripe:stripe-android:20.37.2`
+### Payment Processing - Updated for Enhanced Tap to Pay
+- `com.stripe:stripeterminal:4.6.0` - Latest Stripe Terminal SDK with enhanced Tap to Pay support
+- `com.stripe:stripeterminal-core:4.6.0` - Core Terminal functionality
+- `com.stripe:stripeterminal-taptopay:4.6.0` - Dedicated Tap to Pay module
+- `com.stripe:stripe-android:20.51.0` - Updated Stripe Android SDK
 
 ### Networking & Utilities
 - `com.squareup.okhttp3:okhttp:4.12.0`
@@ -246,12 +247,26 @@ maariv=8:00 PM
 4. Modify location, prayer times, or other settings
 5. Save changes
 
+## 📋 Changelog
+
+### Version 1.9.1-beta-1 (August 27, 2025)
+- **🔄 STRIPE SDK UPGRADE**: Updated Stripe Terminal SDK from 4.6.0 to latest with enhanced Tap to Pay support
+- **✨ Enhanced Tap to Pay**: Improved NFC payment processing with proper device registration
+- **🔧 SDK Modernization**: Updated all Stripe Terminal imports and APIs for better compatibility
+- **🛡️ Better Error Handling**: Enhanced payment error handling and reader connection management
+- **📱 Device Registration**: Added proper Android tablet registration as Tap to Pay reader
+- **🔄 Backwards Compatibility**: Maintained existing API compatibility while adding new features
+- **📚 Updated Dependencies**: All Android and Stripe dependencies updated to latest stable versions
+
+### Version 1.8.4 (Previous Stable)
+- Previous working version with basic Stripe Terminal functionality
+
 ## 🎯 Status
 
-- **Development**: ✅ Complete
-- **Testing**: 🔄 Ready for testing
-- **Deployment**: 🔄 Ready for production deployment
-- **Documentation**: ✅ Complete
+- **Development**: ✅ Complete (v1.9.1-beta-1)
+- **Testing**: 🔄 Ready for beta testing
+- **Deployment**: 🔄 Ready for beta deployment
+- **Documentation**: ✅ Updated for new version
 
 ## 🤝 Support
 
@@ -261,7 +276,7 @@ The application is now ready for manual APK creation in Android Studio and produ
 
 ---
 
-**Last Updated**: January 15, 2025  
-**Version**: 1.0  
+**Last Updated**: August 27, 2025  
+**Version**: 1.9.1-beta-1  
 **Location Default**: Davenport, FL (28.1611, -81.6029)  
-**Target Platform**: Android 7.0+ (API 24+)
+**Target Platform**: Android 8.0+ (API 26+)

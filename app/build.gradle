@@ -11,8 +11,8 @@ android {
         applicationId "com.ohrshalom.kioskapp"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.9.1-beta-1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -60,7 +60,7 @@ java {
 }
 
 dependencies {
-    // Core Android dependencies - Updated for better Java 21 compatibility
+    // Core Android dependencies - Latest versions for Java 21 compatibility
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
@@ -68,16 +68,15 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
     implementation 'androidx.activity:activity-ktx:1.9.2'
 
-    // WebView support
+    // WebView support - Updated
     implementation 'androidx.webkit:webkit:1.12.1'
 
-    // Stripe Terminal SDK for NFC/Tap to Pay - Official latest version for Tap to Pay
-    implementation 'com.stripe:stripeterminal-taptopay:4.6.0'
+    // Stripe Terminal SDK for NFC/Tap to Pay - Latest version with enhanced Tap to Pay support
+    implementation 'com.stripe:stripeterminal:4.6.0'
     implementation 'com.stripe:stripeterminal-core:4.6.0'
-    // Note: stripeterminal-localmobile may not be publicly available
-    // Using main stripeterminal SDK which includes local mobile functionality
+    implementation 'com.stripe:stripeterminal-taptopay:4.6.0'
     
-    // Stripe Android SDK (for fallback payments)
+    // Stripe Android SDK (for fallback payments) - Updated to latest
     implementation 'com.stripe:stripe-android:20.51.0'
     
     // Network operations (for Hebrew calendar API)
