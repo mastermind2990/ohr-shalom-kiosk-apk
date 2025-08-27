@@ -21,7 +21,7 @@ class OhrShalomApplication : Application() {
         try {
             // Initialize TerminalApplicationDelegate to fix Stripe Terminal warning
             Log.d(TAG, "Initializing TerminalApplicationDelegate...")
-            TerminalApplicationDelegate.onCreate()
+            TerminalApplicationDelegate.onCreate(this)
             Log.d(TAG, "TerminalApplicationDelegate initialized successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize TerminalApplicationDelegate", e)
