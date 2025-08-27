@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.5-stripe-credentials'
+        this.version = '1.8-terminal-stable'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -22,11 +22,11 @@ class OhrShalomKiosk {
             organizationName: 'Ohr Shalom',
             logoUrl: '', // Custom logo URL
             stripeTestMode: false, // Test mode for Stripe payments
-            // Stripe configuration
-            stripePublishableKey: '', // Stripe publishable key (pk_test_... or pk_live_...)
-            stripeTokenEndpoint: '', // Server endpoint for connection tokens
-            stripeLocationId: '', // Stripe Terminal location ID
-            stripeEnvironment: 'test' // 'test' or 'live'
+            // Stripe configuration - Production defaults embedded
+            stripePublishableKey: 'pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr', // Live publishable key
+            stripeTokenEndpoint: 'http://161.35.140.12/api/stripe/connection_token', // Production backend endpoint
+            stripeLocationId: 'tml_GKsXoQ8u9cFZJF', // Production Terminal location ID
+            stripeEnvironment: 'live' // Live mode for production
         }
         
         // State
@@ -56,6 +56,9 @@ class OhrShalomKiosk {
         
         // Load saved configuration first
         this.loadConfigurationFromStorage()
+        
+        // Auto-configure Stripe if needed (simple version)
+        this.autoConfigureStripeIfNeeded()
         
         this.setupEventListeners()
         this.loadHebrewCalendar()
@@ -116,6 +119,34 @@ class OhrShalomKiosk {
         // Merge with defaults
         if (saved) {
             this.config = { ...this.config, ...saved }
+        }
+    }
+    
+    autoConfigureStripeIfNeeded() {
+        // Simple auto-configuration for production Stripe credentials
+        // This method updates the Android interface with the hardcoded production credentials
+        console.log('KIOSK DEBUG: Auto-configuring Stripe credentials if needed')
+        
+        if (window.AndroidInterface && window.AndroidInterface.setStripeCredentials) {
+            try {
+                // Pass the production credentials to Android
+                const success = window.AndroidInterface.setStripeCredentials(
+                    this.config.stripePublishableKey,
+                    this.config.stripeTokenEndpoint,
+                    this.config.stripeLocationId,
+                    this.config.stripeEnvironment
+                )
+                
+                if (success) {
+                    console.log('KIOSK DEBUG: Stripe credentials configured successfully')
+                } else {
+                    console.log('KIOSK DEBUG: Failed to configure Stripe credentials')
+                }
+            } catch (error) {
+                console.error('KIOSK DEBUG: Error configuring Stripe credentials:', error)
+            }
+        } else {
+            console.log('KIOSK DEBUG: Android Stripe interface not available, skipping auto-configuration')
         }
     }
     
