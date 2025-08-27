@@ -629,6 +629,58 @@ class MainActivity : AppCompatActivity() {
                 "error: ${e.message}"
             }
         }
+        
+        @JavascriptInterface
+        fun setStripeCredentials(
+            publishableKey: String,
+            tokenEndpoint: String,
+            locationId: String,
+            environment: String
+        ): Boolean {
+            return try {
+                Log.d(TAG, "Setting Stripe credentials via JavaScript interface")
+                Log.d(TAG, "  - Publishable Key: ${publishableKey.take(20)}...")
+                Log.d(TAG, "  - Token Endpoint: $tokenEndpoint")
+                Log.d(TAG, "  - Location ID: $locationId")
+                Log.d(TAG, "  - Environment: $environment")
+                
+                // Update the payment manager with the credentials
+                val isLiveMode = environment.equals("live", ignoreCase = true)
+                val success = paymentManager.updateConfiguration(
+                    publishableKey,
+                    tokenEndpoint,
+                    locationId,
+                    isLiveMode
+                )
+                
+                if (success) {
+                    Log.d(TAG, "Stripe credentials configured successfully")
+                } else {
+                    Log.e(TAG, "Failed to configure Stripe credentials")
+                }
+                
+                success
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting Stripe credentials", e)
+                false
+            }
+        }
+        
+        @JavascriptInterface
+        fun getStripeTerminalStatus(): String {
+            return try {
+                val isInitialized = Terminal.isInitialized()
+                val status = mapOf(
+                    "initialized" to isInitialized,
+                    "timestamp" to System.currentTimeMillis()
+                )
+                gson.toJson(status)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting Stripe Terminal status", e)
+                "{\"error\":\"${e.message}\"}"
+            }
+        }
     }
 
     

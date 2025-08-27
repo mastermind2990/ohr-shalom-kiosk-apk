@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.8-terminal-stable'
+        this.version = '1.8.1-terminal-enhanced'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -768,6 +768,40 @@ class OhrShalomKiosk {
         const hebrewStatus = (hebrewDate && hebrewDate !== 'Unavailable' && parsha && parsha !== 'Unavailable') ? 'LOADED' : 'ERROR'
         document.getElementById('adminHebrewStatus').textContent = hebrewStatus
         document.getElementById('adminHebrewStatus').className = hebrewStatus === 'LOADED' ? 'text-green-600' : 'text-red-600'
+        
+        // Check Stripe Terminal status
+        this.updateTerminalStatus()
+    }
+    
+    updateTerminalStatus() {
+        if (window.AndroidInterface && window.AndroidInterface.getStripeTerminalStatus) {
+            try {
+                const statusJson = window.AndroidInterface.getStripeTerminalStatus()
+                const status = JSON.parse(statusJson)
+                
+                let terminalText = 'NOT INITIALIZED'
+                let terminalClass = 'text-red-600'
+                
+                if (status.error) {
+                    terminalText = 'ERROR'
+                    terminalClass = 'text-red-600'
+                } else if (status.initialized) {
+                    terminalText = 'INITIALIZED'
+                    terminalClass = 'text-green-600'
+                }
+                
+                document.getElementById('adminTerminalStatus').textContent = terminalText
+                document.getElementById('adminTerminalStatus').className = terminalClass
+                
+            } catch (e) {
+                console.error('Failed to get Terminal status:', e)
+                document.getElementById('adminTerminalStatus').textContent = 'ERROR'
+                document.getElementById('adminTerminalStatus').className = 'text-red-600'
+            }
+        } else {
+            document.getElementById('adminTerminalStatus').textContent = 'N/A'
+            document.getElementById('adminTerminalStatus').className = 'text-gray-600'
+        }
     }
     
     showCustomAmountModal() {
@@ -1591,18 +1625,33 @@ class OhrShalomKiosk {
                         try {
                             const response = await fetch(tokenEndpoint, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ test: true })
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                body: JSON.stringify({})
                             })
                             
-                            if (response.ok || response.status === 404) {
-                                validationResults.push('✅ Token endpoint is reachable')
+                            if (response.ok) {
+                                try {
+                                    const data = await response.json()
+                                    if (data.secret && data.secret.startsWith('pst_')) {
+                                        validationResults.push('✅ Token endpoint is working (valid connection token received)')
+                                    } else {
+                                        validationResults.push('⚠️ Token endpoint returned unexpected response format')
+                                    }
+                                } catch (parseError) {
+                                    validationResults.push('⚠️ Token endpoint returned invalid JSON')
+                                }
                             } else {
                                 validationResults.push(`⚠️ Token endpoint returned ${response.status}`)
                             }
                         } catch (e) {
-                            validationResults.push('⚠️ Token endpoint connectivity test failed')
+                            console.error('Token endpoint test failed:', e)
+                            validationResults.push(`⚠️ Token endpoint connectivity failed: ${e.message}`)
                         }
+                    } else {
+                        validationResults.push('⚠️ No internet connection - cannot test endpoint')
                     }
                 } catch (e) {
                     validationResults.push('❌ Invalid token endpoint URL')
@@ -1656,6 +1705,9 @@ class OhrShalomKiosk {
             }
             
             statusDiv.innerHTML = `<div class="font-semibold mb-2">Stripe Credentials Validation</div>${validationResults.join('<br>')}`
+            
+            // Update Terminal status after validation
+            setTimeout(() => this.updateTerminalStatus(), 1000)
             
         } catch (error) {
             console.error('ADMIN DEBUG: Stripe credential validation error:', error)
