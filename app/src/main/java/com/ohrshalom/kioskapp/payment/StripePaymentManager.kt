@@ -3,8 +3,24 @@ package com.ohrshalom.kioskapp.payment
 import android.content.Context
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
-import com.stripe.stripeterminal.external.callable.*
-import com.stripe.stripeterminal.external.models.*
+import com.stripe.stripeterminal.external.callable.Callback
+import com.stripe.stripeterminal.external.callable.Cancelable
+import com.stripe.stripeterminal.external.callable.ConnectionTokenCallback
+import com.stripe.stripeterminal.external.callable.ConnectionTokenProvider
+import com.stripe.stripeterminal.external.callable.DiscoveryListener
+import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
+import com.stripe.stripeterminal.external.callable.ReaderCallback
+import com.stripe.stripeterminal.external.callable.TerminalListener
+import com.stripe.stripeterminal.external.models.ConnectionConfiguration
+import com.stripe.stripeterminal.external.models.ConnectionStatus
+import com.stripe.stripeterminal.external.models.ConnectionTokenException
+import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
+import com.stripe.stripeterminal.external.models.PaymentIntent
+import com.stripe.stripeterminal.external.models.PaymentIntentParameters
+import com.stripe.stripeterminal.external.models.PaymentIntentStatus
+import com.stripe.stripeterminal.external.models.PaymentStatus
+import com.stripe.stripeterminal.external.models.Reader
+import com.stripe.stripeterminal.external.models.TerminalException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -46,6 +62,17 @@ class StripePaymentManager(private val context: Context) {
                         }
                     },
                     listener = object : TerminalListener {
+                        override fun onConnectionStatusChange(status: ConnectionStatus) {
+                            Log.d(TAG, "Connection status changed: $status")
+                            if (status == ConnectionStatus.NOT_CONNECTED) {
+                                connectedReader = null
+                            }
+                        }
+                        
+                        override fun onPaymentStatusChange(status: PaymentStatus) {
+                            Log.d(TAG, "Payment status changed: $status")
+                        }
+                        
                         override fun onUnexpectedReaderDisconnect(reader: Reader) {
                             Log.w(TAG, "Reader disconnected unexpectedly: ${reader.id}")
                             connectedReader = null
@@ -315,7 +342,7 @@ class StripePaymentManager(private val context: Context) {
     
     private fun discoverAndConnectReader() {
         try {
-            Log.d(TAG, "Connecting to local mobile reader (tablet)...")
+            Log.d(TAG, "Discovering and connecting to local mobile reader (tablet)...")
             
             val locationId = this.locationId
             if (locationId.isNullOrBlank()) {
@@ -323,24 +350,46 @@ class StripePaymentManager(private val context: Context) {
                 return
             }
             
-            val config = ConnectionConfiguration.LocalMobileConnectionConfiguration.Builder()
-                .setLocationId(locationId)
-                .build()
+            // First discover available readers
+            val config = DiscoveryConfiguration.LocalMobileDiscoveryConfiguration.Builder().build()
             
-            Terminal.getInstance().connectLocalMobileReader(config, object : ReaderCallback {
-                override fun onSuccess(reader: Reader) {
-                    Log.d(TAG, "Successfully connected local mobile reader: ${reader.id}")
-                    connectedReader = reader
+            Terminal.getInstance().discoverReaders(config, object : DiscoveryListener {
+                override fun onUpdateDiscoveredReaders(readers: List<Reader>) {
+                    Log.d(TAG, "Discovered ${readers.size} readers")
+                    if (readers.isNotEmpty()) {
+                        // Connect to the first available reader (typically the local tablet)
+                        val reader = readers[0]
+                        val connectionConfig = ConnectionConfiguration.LocalMobileConnectionConfiguration(locationId)
+                        
+                        Terminal.getInstance().connectLocalMobileReader(
+                            reader,
+                            connectionConfig, 
+                            object : ReaderCallback {
+                                override fun onSuccess(reader: Reader) {
+                                    Log.d(TAG, "Successfully connected local mobile reader: ${reader.id}")
+                                    connectedReader = reader
+                                }
+                                
+                                override fun onFailure(exception: TerminalException) {
+                                    Log.e(TAG, "Failed to connect local mobile reader: ${exception.errorMessage}")
+                                    Log.e(TAG, "Error code: ${exception.errorCode}")
+                                }
+                            }
+                        )
+                    }
+                }
+            }, object : Callback {
+                override fun onSuccess() {
+                    Log.d(TAG, "Reader discovery completed")
                 }
                 
                 override fun onFailure(exception: TerminalException) {
-                    Log.e(TAG, "Failed to connect local mobile reader: ${exception.errorMessage}")
-                    Log.e(TAG, "Error code: ${exception.errorCode}")
+                    Log.e(TAG, "Reader discovery failed: ${exception.errorMessage}")
                 }
             })
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error connecting to local mobile reader", e)
+            Log.e(TAG, "Error discovering/connecting to local mobile reader", e)
         }
     }
 
