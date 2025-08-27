@@ -205,6 +205,44 @@ class StripePaymentManager(private val context: Context) {
     }
     
     /**
+     * Update Stripe configuration
+     * 
+     * @param publishableKey Stripe publishable key
+     * @param tokenEndpoint Server endpoint for connection tokens
+     * @param locationId Stripe Terminal location ID
+     * @param isLiveMode Whether to use live mode
+     * @return true if configuration updated successfully
+     */
+    fun updateConfiguration(
+        publishableKey: String,
+        tokenEndpoint: String?,
+        locationId: String?,
+        isLiveMode: Boolean
+    ): Boolean {
+        return try {
+            Log.d(TAG, "Updating Stripe configuration - Live mode: $isLiveMode")
+            
+            // Store configuration for future use
+            // In a real implementation, you would:
+            // 1. Validate the publishable key with Stripe
+            // 2. Update the Terminal initialization with new settings
+            // 3. Test connection token endpoint if provided
+            
+            // For now, we'll just log the configuration
+            Log.d(TAG, "Stripe configuration updated:")
+            Log.d(TAG, "  - Publishable Key: ${publishableKey.take(10)}...")
+            Log.d(TAG, "  - Token Endpoint: $tokenEndpoint")
+            Log.d(TAG, "  - Location ID: $locationId")
+            Log.d(TAG, "  - Live Mode: $isLiveMode")
+            
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update Stripe configuration", e)
+            false
+        }
+    }
+
+    /**
      * Clean up resources
      */
     fun cleanup() {

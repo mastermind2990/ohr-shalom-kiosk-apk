@@ -584,6 +584,51 @@ class MainActivity : AppCompatActivity() {
                 "{\"error\":\"${e.message}\"}"
             }
         }
+        
+        @JavascriptInterface
+        fun updateStripeConfig(stripeConfigJson: String): String {
+            return try {
+                Log.d(TAG, "Updating Stripe configuration: $stripeConfigJson")
+                
+                // Parse Stripe configuration
+                val stripeConfig = gson.fromJson(stripeConfigJson, StripeConfig::class.java)
+                
+                // Validate required fields
+                if (stripeConfig.publishableKey.isBlank()) {
+                    return "error: Publishable key is required"
+                }
+                
+                // Validate key format based on environment
+                if (stripeConfig.environment == "test" && !stripeConfig.publishableKey.startsWith("pk_test_")) {
+                    return "error: Test environment requires pk_test_ key"
+                }
+                
+                if (stripeConfig.environment == "live" && !stripeConfig.publishableKey.startsWith("pk_live_")) {
+                    return "error: Live environment requires pk_live_ key"
+                }
+                
+                // Update payment manager with new configuration
+                val success = paymentManager.updateConfiguration(
+                    stripeConfig.publishableKey,
+                    stripeConfig.tokenEndpoint,
+                    stripeConfig.locationId,
+                    stripeConfig.environment == "live"
+                )
+                
+                if (success) {
+                    // Save to configuration file
+                    configManager.updateStripeConfig(stripeConfig)
+                    Log.d(TAG, "Stripe configuration updated successfully")
+                    "success"
+                } else {
+                    "error: Failed to update payment manager"
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating Stripe configuration", e)
+                "error: ${e.message}"
+            }
+        }
     }
 
     
@@ -632,5 +677,12 @@ class MainActivity : AppCompatActivity() {
         val amount: Int, // Amount in cents
         val currency: String,
         val email: String?
+    )
+    
+    data class StripeConfig(
+        val publishableKey: String,
+        val tokenEndpoint: String,
+        val locationId: String,
+        val environment: String // "test" or "live"
     )
 }

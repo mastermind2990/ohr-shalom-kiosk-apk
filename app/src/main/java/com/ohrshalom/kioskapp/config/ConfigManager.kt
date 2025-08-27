@@ -200,4 +200,37 @@ class ConfigManager(private val context: Context) {
     fun configFileExists(): Boolean {
         return configFile.exists()
     }
+    
+    /**
+     * Update Stripe configuration in the config file
+     */
+    fun updateStripeConfig(stripeConfig: com.ohrshalom.kioskapp.MainActivity.StripeConfig): Boolean {
+        return try {
+            val properties = Properties()
+            
+            // Load current properties if file exists
+            if (configFile.exists()) {
+                FileInputStream(configFile).use { inputStream ->
+                    properties.load(inputStream)
+                }
+            }
+            
+            // Update Stripe properties
+            properties.setProperty("stripe.publishableKey", stripeConfig.publishableKey)
+            properties.setProperty("stripe.tokenEndpoint", stripeConfig.tokenEndpoint)
+            properties.setProperty("stripe.locationId", stripeConfig.locationId)
+            properties.setProperty("stripe.environment", stripeConfig.environment)
+            
+            // Save back to file
+            FileOutputStream(configFile).use { outputStream ->
+                properties.store(outputStream, "Ohr Shalom Kiosk Configuration - Stripe Updated: ${System.currentTimeMillis()}")
+            }
+            
+            Log.d(TAG, "Stripe configuration saved successfully")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save Stripe configuration", e)
+            false
+        }
+    }
 }

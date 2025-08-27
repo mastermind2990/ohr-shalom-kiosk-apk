@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.4-admin-features'
+        this.version = '1.5-stripe-credentials'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -21,7 +21,12 @@ class OhrShalomKiosk {
             maariv: '8:00 PM',
             organizationName: 'Ohr Shalom',
             logoUrl: '', // Custom logo URL
-            stripeTestMode: false // Test mode for Stripe payments
+            stripeTestMode: false, // Test mode for Stripe payments
+            // Stripe configuration
+            stripePublishableKey: '', // Stripe publishable key (pk_test_... or pk_live_...)
+            stripeTokenEndpoint: '', // Server endpoint for connection tokens
+            stripeLocationId: '', // Stripe Terminal location ID
+            stripeEnvironment: 'test' // 'test' or 'live'
         }
         
         // State
@@ -285,6 +290,15 @@ class OhrShalomKiosk {
         
         document.getElementById('adminStripeTest').addEventListener('click', () => {
             this.startTestPayment()
+        })
+        
+        // Stripe credential management
+        document.getElementById('adminValidateStripeCredentials').addEventListener('click', () => {
+            this.validateStripeCredentials()
+        })
+        
+        document.getElementById('adminClearStripeCredentials').addEventListener('click', () => {
+            this.clearStripeCredentials()
         })
     }
     
@@ -657,6 +671,12 @@ class OhrShalomKiosk {
         
         // Logo URL
         document.getElementById('adminLogoUrl').value = this.config.logoUrl || ''
+        
+        // Stripe Configuration
+        document.getElementById('adminStripePublishableKey').value = this.config.stripePublishableKey || ''
+        document.getElementById('adminStripeTokenEndpoint').value = this.config.stripeTokenEndpoint || ''
+        document.getElementById('adminStripeLocationId').value = this.config.stripeLocationId || ''
+        document.getElementById('adminStripeEnvironment').value = this.config.stripeEnvironment || 'test'
         
         // Status checks
         this.updateAdminStatus()
@@ -1123,7 +1143,11 @@ class OhrShalomKiosk {
                 shacharit: this.convertTo12Hour(document.getElementById('adminShacharit').value),
                 mincha: this.convertTo12Hour(document.getElementById('adminMincha').value),
                 maariv: this.convertTo12Hour(document.getElementById('adminMaariv').value),
-                logoUrl: document.getElementById('adminLogoUrl').value
+                logoUrl: document.getElementById('adminLogoUrl').value,
+                stripePublishableKey: document.getElementById('adminStripePublishableKey').value,
+                stripeTokenEndpoint: document.getElementById('adminStripeTokenEndpoint').value,
+                stripeLocationId: document.getElementById('adminStripeLocationId').value,
+                stripeEnvironment: document.getElementById('adminStripeEnvironment').value
             }
             
             // Handle new PIN if provided
@@ -1208,7 +1232,13 @@ class OhrShalomKiosk {
                 shacharit: '7:00 AM',
                 mincha: '2:00 PM',
                 maariv: '8:00 PM',
-                organizationName: 'Ohr Shalom'
+                organizationName: 'Ohr Shalom',
+                logoUrl: '',
+                stripeTestMode: false,
+                stripePublishableKey: '',
+                stripeTokenEndpoint: '',
+                stripeLocationId: '',
+                stripeEnvironment: 'test'
             }
             
             // Save to storage
@@ -1488,6 +1518,159 @@ class OhrShalomKiosk {
         } catch (error) {
             console.error('ADMIN DEBUG: Test payment error:', error)
             resultsDiv.innerHTML = `Test payment failed: ${error.message}`
+        }
+    }
+    
+    // Stripe credential management methods
+    async validateStripeCredentials() {
+        console.log('ADMIN DEBUG: Validating Stripe credentials')
+        const statusDiv = document.getElementById('stripeCredentialStatus')
+        statusDiv.classList.remove('hidden')
+        statusDiv.className = 'p-3 rounded border text-sm bg-blue-50 border-blue-200'
+        statusDiv.innerHTML = 'Validating Stripe credentials...'
+        
+        try {
+            const publishableKey = document.getElementById('adminStripePublishableKey').value
+            const tokenEndpoint = document.getElementById('adminStripeTokenEndpoint').value
+            const locationId = document.getElementById('adminStripeLocationId').value
+            const environment = document.getElementById('adminStripeEnvironment').value
+            
+            // Validation checks
+            const validationResults = []
+            
+            // Check publishable key format
+            if (!publishableKey) {
+                validationResults.push('❌ Publishable key is required')
+            } else if (environment === 'test' && !publishableKey.startsWith('pk_test_')) {
+                validationResults.push('⚠️ Test environment should use pk_test_ key')
+            } else if (environment === 'live' && !publishableKey.startsWith('pk_live_')) {
+                validationResults.push('⚠️ Live environment should use pk_live_ key')
+            } else {
+                validationResults.push('✅ Publishable key format is valid')
+            }
+            
+            // Check token endpoint
+            if (tokenEndpoint) {
+                try {
+                    new URL(tokenEndpoint)
+                    validationResults.push('✅ Token endpoint URL format is valid')
+                    
+                    // Test endpoint connectivity
+                    if (navigator.onLine) {
+                        try {
+                            const response = await fetch(tokenEndpoint, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ test: true })
+                            })
+                            
+                            if (response.ok || response.status === 404) {
+                                validationResults.push('✅ Token endpoint is reachable')
+                            } else {
+                                validationResults.push(`⚠️ Token endpoint returned ${response.status}`)
+                            }
+                        } catch (e) {
+                            validationResults.push('⚠️ Token endpoint connectivity test failed')
+                        }
+                    }
+                } catch (e) {
+                    validationResults.push('❌ Invalid token endpoint URL')
+                }
+            } else {
+                validationResults.push('⚠️ Token endpoint recommended for live payments')
+            }
+            
+            // Check location ID format
+            if (locationId) {
+                if (locationId.startsWith('tml_')) {
+                    validationResults.push('✅ Location ID format is valid')
+                } else {
+                    validationResults.push('⚠️ Location ID should start with "tml_"')
+                }
+            } else {
+                validationResults.push('⚠️ Location ID recommended for Terminal payments')
+            }
+            
+            // Update Android with credentials if valid
+            if (publishableKey && window.AndroidInterface && window.AndroidInterface.updateStripeConfig) {
+                const stripeConfig = {
+                    publishableKey,
+                    tokenEndpoint,
+                    locationId,
+                    environment
+                }
+                
+                try {
+                    const result = window.AndroidInterface.updateStripeConfig(JSON.stringify(stripeConfig))
+                    if (result === 'success') {
+                        validationResults.push('✅ Android Stripe configuration updated')
+                    } else {
+                        validationResults.push('⚠️ Android configuration update: ' + result)
+                    }
+                } catch (e) {
+                    validationResults.push('⚠️ Could not update Android configuration')
+                }
+            }
+            
+            // Display results
+            const hasErrors = validationResults.some(r => r.startsWith('❌'))
+            const hasWarnings = validationResults.some(r => r.startsWith('⚠️'))
+            
+            if (hasErrors) {
+                statusDiv.className = 'p-3 rounded border text-sm bg-red-50 border-red-200'
+            } else if (hasWarnings) {
+                statusDiv.className = 'p-3 rounded border text-sm bg-yellow-50 border-yellow-200'
+            } else {
+                statusDiv.className = 'p-3 rounded border text-sm bg-green-50 border-green-200'
+            }
+            
+            statusDiv.innerHTML = `<div class="font-semibold mb-2">Stripe Credentials Validation</div>${validationResults.join('<br>')}`
+            
+        } catch (error) {
+            console.error('ADMIN DEBUG: Stripe credential validation error:', error)
+            statusDiv.className = 'p-3 rounded border text-sm bg-red-50 border-red-200'
+            statusDiv.innerHTML = `Validation error: ${error.message}`
+        }
+    }
+    
+    clearStripeCredentials() {
+        console.log('ADMIN DEBUG: Clearing Stripe credentials')
+        
+        if (confirm('Are you sure you want to clear all Stripe credentials? This will disable payment processing until new credentials are entered.')) {
+            // Clear form fields
+            document.getElementById('adminStripePublishableKey').value = ''
+            document.getElementById('adminStripeTokenEndpoint').value = ''
+            document.getElementById('adminStripeLocationId').value = ''
+            document.getElementById('adminStripeEnvironment').value = 'test'
+            
+            // Clear from configuration
+            this.config.stripePublishableKey = ''
+            this.config.stripeTokenEndpoint = ''
+            this.config.stripeLocationId = ''
+            this.config.stripeEnvironment = 'test'
+            
+            // Save cleared configuration
+            localStorage.setItem('ohrShalomKioskConfig', JSON.stringify(this.config))
+            
+            // Clear Android configuration if available
+            if (window.AndroidInterface && window.AndroidInterface.updateStripeConfig) {
+                try {
+                    window.AndroidInterface.updateStripeConfig(JSON.stringify({
+                        publishableKey: '',
+                        tokenEndpoint: '',
+                        locationId: '',
+                        environment: 'test'
+                    }))
+                } catch (e) {
+                    console.warn('Could not clear Android Stripe configuration:', e)
+                }
+            }
+            
+            // Hide status and show success message
+            const statusDiv = document.getElementById('stripeCredentialStatus')
+            statusDiv.classList.add('hidden')
+            
+            this.showMessage('Stripe credentials cleared', 'info', 3000)
         }
     }
     
