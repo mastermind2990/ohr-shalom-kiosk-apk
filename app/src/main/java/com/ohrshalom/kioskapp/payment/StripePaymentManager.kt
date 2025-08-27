@@ -80,12 +80,25 @@ class StripePaymentManager(private val context: Context) {
      */
     private fun configureProductionDefaults() {
         try {
-            Log.d(TAG, "Configuring production defaults for automatic Terminal registration")
+            Log.d(TAG, "=== STRIPE ANDROID DEBUG: Starting production defaults configuration ===")
+            
+            // Check current state
+            Log.d(TAG, "ANDROID DEBUG: Current configuration state:")
+            Log.d(TAG, "  - Token Endpoint: ${connectionTokenEndpoint ?: "NOT SET"}")
+            Log.d(TAG, "  - Location ID: ${locationId ?: "NOT SET"}")
+            Log.d(TAG, "  - Is Configured: $isConfigured")
+            Log.d(TAG, "  - Terminal Initialized: ${Terminal.isInitialized()}")
             
             // Hardcoded production values
             val productionPublishableKey = "pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr"
             val productionTokenEndpoint = "http://161.35.140.12/api/stripe/connection_token"
             val productionLocationId = "tml_GKsXoQ8u9cFZJF"
+            
+            Log.d(TAG, "ANDROID DEBUG: Applying production configuration:")
+            Log.d(TAG, "  - Publishable Key: ${productionPublishableKey.take(20)}...")
+            Log.d(TAG, "  - Token Endpoint: $productionTokenEndpoint")
+            Log.d(TAG, "  - Location ID: $productionLocationId")
+            Log.d(TAG, "  - Live Mode: true")
             
             // Configure automatically
             val success = updateConfiguration(
@@ -95,52 +108,104 @@ class StripePaymentManager(private val context: Context) {
                 isLiveMode = true
             )
             
+            Log.d(TAG, "ANDROID DEBUG: Configuration update result: $success")
+            
             if (success) {
-                Log.d(TAG, "Production defaults configured successfully - Terminal registration will begin automatically")
+                Log.d(TAG, "✅ ANDROID DEBUG: Production defaults configured successfully")
+                Log.d(TAG, "ANDROID DEBUG: Terminal registration process initiated")
+                
+                // Log final state
+                Log.d(TAG, "ANDROID DEBUG: Final configuration state:")
+                Log.d(TAG, "  - Token Endpoint: ${connectionTokenEndpoint}")
+                Log.d(TAG, "  - Location ID: ${locationId}")
+                Log.d(TAG, "  - Is Configured: $isConfigured")
+                Log.d(TAG, "  - Terminal Status: ${getTerminalStatus()}")
             } else {
-                Log.w(TAG, "Failed to configure production defaults")
+                Log.w(TAG, "❌ ANDROID DEBUG: Failed to configure production defaults")
             }
+            
+            Log.d(TAG, "=== STRIPE ANDROID DEBUG: Production defaults configuration completed ===")
         } catch (e: Exception) {
-            Log.e(TAG, "Error configuring production defaults", e)
+            Log.e(TAG, "❌ ANDROID DEBUG: Exception during production defaults configuration", e)
         }
     }
     
     private fun fetchConnectionTokenFromBackend(callback: ConnectionTokenCallback) {
+        Log.d(TAG, "=== CONNECTION TOKEN DEBUG: Starting token fetch ===")
+        
         val endpoint = connectionTokenEndpoint
         if (endpoint.isNullOrBlank()) {
-            Log.e(TAG, "Connection token endpoint not configured")
+            Log.e(TAG, "❌ CONNECTION TOKEN DEBUG: Endpoint not configured")
             callback.onFailure(ConnectionTokenException("Connection token endpoint not configured"))
             return
         }
         
-        Log.d(TAG, "Fetching connection token from: $endpoint")
+        Log.d(TAG, "CONNECTION TOKEN DEBUG: Fetching from endpoint: $endpoint")
+        Log.d(TAG, "CONNECTION TOKEN DEBUG: Request method: POST")
+        Log.d(TAG, "CONNECTION TOKEN DEBUG: Request body: {}")
         
+        val requestBody = "{}".toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
             .url(endpoint)
-            .post("{}".toRequestBody("application/json".toMediaType()))
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
             .build()
+        
+        Log.d(TAG, "CONNECTION TOKEN DEBUG: Request headers: ${request.headers}")
+        val startTime = System.currentTimeMillis()
         
         httpClient.newCall(request).enqueue(object : okhttp3.Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e(TAG, "Failed to fetch connection token", e)
+                val duration = System.currentTimeMillis() - startTime
+                Log.e(TAG, "❌ CONNECTION TOKEN DEBUG: Network request failed after ${duration}ms", e)
+                Log.e(TAG, "CONNECTION TOKEN DEBUG: Error type: ${e.javaClass.simpleName}")
+                Log.e(TAG, "CONNECTION TOKEN DEBUG: Error message: ${e.message}")
                 callback.onFailure(ConnectionTokenException("Network error: ${e.message}"))
             }
             
             override fun onResponse(call: Call, response: Response) {
+                val duration = System.currentTimeMillis() - startTime
                 try {
+                    Log.d(TAG, "CONNECTION TOKEN DEBUG: Response received after ${duration}ms")
+                    Log.d(TAG, "CONNECTION TOKEN DEBUG: Response code: ${response.code}")
+                    Log.d(TAG, "CONNECTION TOKEN DEBUG: Response message: ${response.message}")
+                    Log.d(TAG, "CONNECTION TOKEN DEBUG: Response headers: ${response.headers}")
+                    
                     val responseBody = response.body?.string()
+                    Log.d(TAG, "CONNECTION TOKEN DEBUG: Response body length: ${responseBody?.length ?: 0}")
+                    Log.d(TAG, "CONNECTION TOKEN DEBUG: Response body: ${responseBody ?: "NULL"}")
+                    
                     if (response.isSuccessful && responseBody != null) {
-                        val json = JSONObject(responseBody)
-                        val secret = json.getString("secret")
-                        Log.d(TAG, "Connection token received successfully")
-                        callback.onSuccess(secret)
+                        try {
+                            val json = JSONObject(responseBody)
+                            Log.d(TAG, "CONNECTION TOKEN DEBUG: Parsed JSON keys: ${json.keys().asSequence().toList()}")
+                            
+                            if (json.has("secret")) {
+                                val secret = json.getString("secret")
+                                Log.d(TAG, "✅ CONNECTION TOKEN DEBUG: Secret found, length: ${secret.length}")
+                                Log.d(TAG, "CONNECTION TOKEN DEBUG: Secret prefix: ${secret.take(10)}...")
+                                callback.onSuccess(secret)
+                            } else {
+                                Log.e(TAG, "❌ CONNECTION TOKEN DEBUG: No 'secret' field in response")
+                                callback.onFailure(ConnectionTokenException("Response missing 'secret' field"))
+                            }
+                        } catch (jsonException: Exception) {
+                            Log.e(TAG, "❌ CONNECTION TOKEN DEBUG: JSON parsing failed", jsonException)
+                            Log.e(TAG, "CONNECTION TOKEN DEBUG: Raw response for debugging: $responseBody")
+                            callback.onFailure(ConnectionTokenException("JSON parse error: ${jsonException.message}"))
+                        }
                     } else {
-                        Log.e(TAG, "Failed to get connection token: ${response.code}")
-                        callback.onFailure(ConnectionTokenException("Server error: ${response.code}"))
+                        Log.e(TAG, "❌ CONNECTION TOKEN DEBUG: Unsuccessful response")
+                        Log.e(TAG, "CONNECTION TOKEN DEBUG: HTTP ${response.code}: ${response.message}")
+                        Log.e(TAG, "CONNECTION TOKEN DEBUG: Response body: $responseBody")
+                        callback.onFailure(ConnectionTokenException("Server error: ${response.code} - ${response.message}"))
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing connection token response", e)
-                    callback.onFailure(ConnectionTokenException("Parse error: ${e.message}"))
+                    Log.e(TAG, "❌ CONNECTION TOKEN DEBUG: Exception processing response", e)
+                    callback.onFailure(ConnectionTokenException("Response processing error: ${e.message}"))
+                } finally {
+                    Log.d(TAG, "=== CONNECTION TOKEN DEBUG: Token fetch completed ===")
                 }
             }
         })
@@ -333,26 +398,55 @@ class StripePaymentManager(private val context: Context) {
         isLiveMode: Boolean
     ): Boolean {
         return try {
-            Log.d(TAG, "Updating Stripe configuration - Live mode: $isLiveMode")
-            
-            this.connectionTokenEndpoint = tokenEndpoint
-            this.locationId = locationId
-            
-            Log.d(TAG, "Stripe configuration updated:")
-            Log.d(TAG, "  - Publishable Key: ${publishableKey.take(10)}...")
+            Log.d(TAG, "=== STRIPE CONFIG UPDATE DEBUG: Starting configuration update ===")
+            Log.d(TAG, "CONFIG DEBUG: Input parameters:")
+            Log.d(TAG, "  - Publishable Key: ${publishableKey.take(20)}... (length: ${publishableKey.length})")
             Log.d(TAG, "  - Token Endpoint: $tokenEndpoint")
             Log.d(TAG, "  - Location ID: $locationId")
             Log.d(TAG, "  - Live Mode: $isLiveMode")
             
-            // If we have all required info, try to discover and connect reader
-            if (!tokenEndpoint.isNullOrBlank() && !locationId.isNullOrBlank()) {
+            Log.d(TAG, "CONFIG DEBUG: Previous configuration:")
+            Log.d(TAG, "  - Previous Endpoint: $connectionTokenEndpoint")
+            Log.d(TAG, "  - Previous Location: ${this.locationId}")
+            Log.d(TAG, "  - Previous Configured: $isConfigured")
+            
+            // Update configuration
+            this.connectionTokenEndpoint = tokenEndpoint
+            this.locationId = locationId
+            
+            Log.d(TAG, "CONFIG DEBUG: Configuration variables updated")
+            
+            // Validate configuration completeness
+            val hasEndpoint = !tokenEndpoint.isNullOrBlank()
+            val hasLocation = !locationId.isNullOrBlank()
+            val hasPublishableKey = publishableKey.isNotBlank()
+            
+            Log.d(TAG, "CONFIG DEBUG: Configuration validation:")
+            Log.d(TAG, "  - Has Endpoint: $hasEndpoint")
+            Log.d(TAG, "  - Has Location: $hasLocation")
+            Log.d(TAG, "  - Has Publishable Key: $hasPublishableKey")
+            
+            if (hasEndpoint && hasLocation && hasPublishableKey) {
+                Log.d(TAG, "CONFIG DEBUG: All required configuration present, setting up Tap to Pay")
                 discoverAndConnectReader()
+            } else {
+                Log.w(TAG, "CONFIG DEBUG: Incomplete configuration - Tap to Pay setup skipped")
+                isConfigured = false
             }
             
+            Log.d(TAG, "CONFIG DEBUG: Final state:")
+            Log.d(TAG, "  - Token Endpoint: $connectionTokenEndpoint")
+            Log.d(TAG, "  - Location ID: ${this.locationId}")
+            Log.d(TAG, "  - Is Configured: $isConfigured")
+            Log.d(TAG, "  - Terminal Status: ${getTerminalStatus()}")
+            
+            Log.d(TAG, "✅ CONFIG DEBUG: Configuration update completed successfully")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to update Stripe configuration", e)
+            Log.e(TAG, "❌ CONFIG DEBUG: Failed to update Stripe configuration", e)
             false
+        } finally {
+            Log.d(TAG, "=== STRIPE CONFIG UPDATE DEBUG: Update process finished ===")
         }
     }
     

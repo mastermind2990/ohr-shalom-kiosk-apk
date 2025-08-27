@@ -3,7 +3,7 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.6-terminal-integration'
+        this.version = '1.7-terminal-debug'
         this.buildDate = '2025-08-26'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -123,13 +123,25 @@ class OhrShalomKiosk {
     }
     
     autoConfigureStripe() {
-        console.log('STRIPE DEBUG: Auto-configuring Stripe with production defaults')
+        console.log('=== STRIPE AUTO-CONFIG DEBUG: Starting auto-configuration ===')
+        console.log('STRIPE DEBUG: Current config state:', {
+            hasPublishableKey: !!this.config.stripePublishableKey,
+            hasEndpoint: !!this.config.stripeTokenEndpoint,
+            hasLocationId: !!this.config.stripeLocationId,
+            environment: this.config.stripeEnvironment,
+            testMode: this.config.stripeTestMode
+        })
         
         // Check if Stripe is already configured
         if (this.config.stripePublishableKey && 
             this.config.stripeTokenEndpoint && 
             this.config.stripeLocationId) {
-            console.log('STRIPE DEBUG: Stripe already configured, skipping auto-configuration')
+            console.log('STRIPE DEBUG: Stripe already configured with values:')
+            console.log('  - Publishable Key:', this.config.stripePublishableKey.substring(0, 20) + '...')
+            console.log('  - Token Endpoint:', this.config.stripeTokenEndpoint)
+            console.log('  - Location ID:', this.config.stripeLocationId)
+            console.log('  - Environment:', this.config.stripeEnvironment)
+            console.log('STRIPE DEBUG: Skipping auto-configuration, updating Android interface')
             
             // Still update Android interface with current values
             this.updateAndroidStripeConfig()
@@ -137,41 +149,90 @@ class OhrShalomKiosk {
         }
         
         // Auto-configure with hardcoded production values
-        console.log('STRIPE DEBUG: Configuring with production defaults')
-        this.config.stripePublishableKey = 'pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr'
-        this.config.stripeTokenEndpoint = 'http://161.35.140.12/api/stripe/connection_token'
-        this.config.stripeLocationId = 'tml_GKsXoQ8u9cFZJF'
-        this.config.stripeEnvironment = 'live'
-        this.config.stripeTestMode = false
+        console.log('STRIPE DEBUG: No existing configuration found, applying production defaults')
+        const productionConfig = {
+            stripePublishableKey: 'pk_live_51Q5QhsJhCdJUSe2h1hl7iqL7YLmprQQMu7FLmkDzULDwacidH6LmzH4dbodT2k2FP7Sh9whkLmZ5YHmGFEi4MrtE0081NqrCtr',
+            stripeTokenEndpoint: 'http://161.35.140.12/api/stripe/connection_token',
+            stripeLocationId: 'tml_GKsXoQ8u9cFZJF',
+            stripeEnvironment: 'live',
+            stripeTestMode: false
+        }
+        
+        console.log('STRIPE DEBUG: Applying production configuration:', {
+            publishableKey: productionConfig.stripePublishableKey.substring(0, 20) + '...',
+            tokenEndpoint: productionConfig.stripeTokenEndpoint,
+            locationId: productionConfig.stripeLocationId,
+            environment: productionConfig.stripeEnvironment,
+            testMode: productionConfig.stripeTestMode
+        })
+        
+        // Apply configuration
+        Object.assign(this.config, productionConfig)
         
         // Save the configuration
+        console.log('STRIPE DEBUG: Saving configuration to storage')
         this.saveConfig()
         
         // Update Android interface
+        console.log('STRIPE DEBUG: Updating Android interface with new configuration')
         this.updateAndroidStripeConfig()
         
-        console.log('STRIPE DEBUG: Production defaults configured successfully')
+        console.log('=== STRIPE AUTO-CONFIG DEBUG: Production defaults configured successfully ===')
     }
     
     updateAndroidStripeConfig() {
-        // Update Android Stripe configuration
-        if (window.AndroidInterface && window.AndroidInterface.updateStripeConfig) {
-            try {
-                console.log('STRIPE DEBUG: Updating Android Stripe configuration')
-                const success = window.AndroidInterface.updateStripeConfig(
-                    this.config.stripePublishableKey,
-                    this.config.stripeTokenEndpoint,
-                    this.config.stripeLocationId,
-                    this.config.stripeEnvironment === 'live'
-                )
-                if (success) {
-                    console.log('STRIPE DEBUG: Android Stripe configuration updated successfully')
-                } else {
-                    console.error('STRIPE DEBUG: Failed to update Android Stripe configuration')
+        console.log('=== ANDROID STRIPE CONFIG DEBUG: Starting Android interface update ===')
+        
+        // Check if Android interface is available
+        if (!window.AndroidInterface) {
+            console.error('ANDROID DEBUG: AndroidInterface not available - running in web mode')
+            return false
+        }
+        
+        if (!window.AndroidInterface.updateStripeConfig) {
+            console.error('ANDROID DEBUG: updateStripeConfig method not available in AndroidInterface')
+            return false
+        }
+        
+        try {
+            console.log('ANDROID DEBUG: Preparing to call Android updateStripeConfig with parameters:')
+            console.log('  - Publishable Key:', this.config.stripePublishableKey ? 
+                (this.config.stripePublishableKey.substring(0, 20) + '...') : 'EMPTY')
+            console.log('  - Token Endpoint:', this.config.stripeTokenEndpoint || 'EMPTY')
+            console.log('  - Location ID:', this.config.stripeLocationId || 'EMPTY')
+            console.log('  - Is Live Mode:', this.config.stripeEnvironment === 'live')
+            
+            const success = window.AndroidInterface.updateStripeConfig(
+                this.config.stripePublishableKey,
+                this.config.stripeTokenEndpoint,
+                this.config.stripeLocationId,
+                this.config.stripeEnvironment === 'live'
+            )
+            
+            console.log('ANDROID DEBUG: updateStripeConfig call completed, result:', success)
+            
+            if (success) {
+                console.log('✅ ANDROID DEBUG: Android Stripe configuration updated successfully')
+                
+                // Also get Terminal status for additional debugging
+                if (window.AndroidInterface.getTerminalStatus) {
+                    try {
+                        const terminalStatus = window.AndroidInterface.getTerminalStatus()
+                        console.log('ANDROID DEBUG: Terminal status after config update:', terminalStatus)
+                    } catch (statusError) {
+                        console.error('ANDROID DEBUG: Error getting terminal status:', statusError)
+                    }
                 }
-            } catch (error) {
-                console.error('STRIPE DEBUG: Error updating Android Stripe configuration:', error)
+            } else {
+                console.error('❌ ANDROID DEBUG: Failed to update Android Stripe configuration')
             }
+            
+            return success
+        } catch (error) {
+            console.error('❌ ANDROID DEBUG: Exception during Android Stripe configuration update:', error)
+            return false
+        } finally {
+            console.log('=== ANDROID STRIPE CONFIG DEBUG: Update process completed ===')
         }
     }
     
@@ -1368,6 +1429,12 @@ class OhrShalomKiosk {
                     const kioskInfo = this.getKioskInfo()
                     resultsDiv.innerHTML = `Debug Info:\n${JSON.stringify(kioskInfo, null, 2)}`
                     break
+                    
+                case 'debug-report':
+                    resultsDiv.innerHTML = 'Generating comprehensive debug report...'
+                    const debugReport = this.generateCopyableDebugReport()
+                    resultsDiv.innerHTML = 'Debug report generated! Check console for full details.\nReport also available in debug text area and temporary copyable element.'
+                    break
             }
         } catch (error) {
             resultsDiv.innerHTML = `Test failed: ${error.message}`
@@ -1649,23 +1716,64 @@ class OhrShalomKiosk {
                     new URL(tokenEndpoint)
                     validationResults.push('✅ Token endpoint URL format is valid')
                     
-                    // Test endpoint connectivity
+                    // Test endpoint connectivity with detailed debugging
                     if (navigator.onLine) {
                         try {
+                            console.log('STRIPE DEBUG: Testing endpoint connectivity to:', tokenEndpoint)
+                            const startTime = Date.now()
+                            
                             const response = await fetch(tokenEndpoint, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({})
                             })
                             
-                            if (response.ok || response.status === 404) {
-                                validationResults.push('✅ Token endpoint is reachable')
+                            const endTime = Date.now()
+                            const responseTime = endTime - startTime
+                            
+                            console.log('STRIPE DEBUG: Endpoint response:', {
+                                status: response.status,
+                                statusText: response.statusText,
+                                headers: Object.fromEntries(response.headers.entries()),
+                                responseTime: responseTime + 'ms'
+                            })
+                            
+                            const responseText = await response.text()
+                            console.log('STRIPE DEBUG: Response body:', responseText)
+                            
+                            if (response.ok) {
+                                validationResults.push(`✅ Token endpoint is reachable (${response.status}, ${responseTime}ms)`)
+                                try {
+                                    const responseJson = JSON.parse(responseText)
+                                    if (responseJson.secret) {
+                                        validationResults.push('✅ Token endpoint returns valid connection token')
+                                    } else {
+                                        validationResults.push('⚠️ Token endpoint response missing secret field')
+                                    }
+                                } catch (parseError) {
+                                    console.log('STRIPE DEBUG: Response is not JSON, checking for error message')
+                                    validationResults.push('⚠️ Token endpoint response is not valid JSON')
+                                }
+                            } else if (response.status === 404) {
+                                validationResults.push(`⚠️ Token endpoint not found (404) - check URL: ${tokenEndpoint}`)
                             } else {
-                                validationResults.push(`⚠️ Token endpoint returned ${response.status}`)
+                                validationResults.push(`⚠️ Token endpoint returned ${response.status}: ${response.statusText}`)
+                                if (responseText) {
+                                    validationResults.push(`   Response: ${responseText.substring(0, 100)}`)
+                                }
                             }
                         } catch (e) {
-                            validationResults.push('⚠️ Token endpoint connectivity test failed')
+                            console.error('STRIPE DEBUG: Endpoint connectivity test failed:', e)
+                            validationResults.push(`⚠️ Token endpoint connectivity test failed: ${e.message}`)
+                            
+                            // Additional network diagnostics
+                            if (e.name === 'TypeError' && e.message.includes('fetch')) {
+                                validationResults.push('   This may be a CORS or network connectivity issue')
+                            }
                         }
+                    } else {
+                        validationResults.push('⚠️ Device is offline - cannot test endpoint connectivity')
+                    }
                     }
                 } catch (e) {
                     validationResults.push('❌ Invalid token endpoint URL')
@@ -1766,6 +1874,97 @@ class OhrShalomKiosk {
             
             this.showMessage('Stripe credentials cleared', 'info', 3000)
         }
+    }
+    
+    // Enhanced debugging methods
+    generateCopyableDebugReport() {
+        console.log('=== GENERATING COPYABLE DEBUG REPORT ===')
+        
+        const debugReport = {
+            timestamp: new Date().toISOString(),
+            version: this.version,
+            buildDate: this.buildDate,
+            
+            // System Information
+            system: {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                online: navigator.onLine,
+                cookieEnabled: navigator.cookieEnabled,
+                language: navigator.language
+            },
+            
+            // Kiosk Configuration
+            config: {
+                organizationName: this.config.organizationName,
+                latitude: this.config.latitude,
+                longitude: this.config.longitude,
+                timeZone: this.config.timeZone,
+                locationMethod: this.config.locationMethod,
+                stripeEnvironment: this.config.stripeEnvironment,
+                stripeTestMode: this.config.stripeTestMode,
+                hasStripePublishableKey: !!this.config.stripePublishableKey,
+                stripePublishableKeyPrefix: this.config.stripePublishableKey ? 
+                    this.config.stripePublishableKey.substring(0, 20) + '...' : 'NOT SET',
+                stripeTokenEndpoint: this.config.stripeTokenEndpoint || 'NOT SET',
+                stripeLocationId: this.config.stripeLocationId || 'NOT SET'
+            },
+            
+            // Android Interface Status
+            android: {
+                interfaceAvailable: !!window.AndroidInterface,
+                methods: window.AndroidInterface ? {
+                    hasUpdateStripeConfig: typeof window.AndroidInterface.updateStripeConfig === 'function',
+                    hasGetTerminalStatus: typeof window.AndroidInterface.getTerminalStatus === 'function',
+                    hasLog: typeof window.AndroidInterface.log === 'function',
+                    hasGetConfig: typeof window.AndroidInterface.getConfig === 'function',
+                    hasSaveConfig: typeof window.AndroidInterface.saveConfig === 'function'
+                } : null,
+                terminalStatus: null
+            },
+            
+            // DOM Elements Status
+            elements: {
+                adminModal: !!document.getElementById('adminModal'),
+                adminConfigModal: !!document.getElementById('adminConfigModal'),
+                stripeCredentialStatus: !!document.getElementById('stripeCredentialStatus'),
+                debugInfoText: !!document.getElementById('debugInfoText')
+            }
+        }
+        
+        // Get Android Terminal status if available
+        if (window.AndroidInterface && window.AndroidInterface.getTerminalStatus) {
+            try {
+                debugReport.android.terminalStatus = window.AndroidInterface.getTerminalStatus()
+            } catch (error) {
+                debugReport.android.terminalStatusError = error.message
+            }
+        }
+        
+        const reportText = JSON.stringify(debugReport, null, 2)
+        console.log('DEBUG REPORT:\n' + reportText)
+        
+        // Try to display in a copyable format
+        const debugTextArea = document.getElementById('debugInfoText')
+        if (debugTextArea) {
+            debugTextArea.value = reportText
+            console.log('DEBUG: Report written to debug text area')
+        }
+        
+        // Also try to create a temporary text area for copying
+        try {
+            const tempTextArea = document.createElement('textarea')
+            tempTextArea.value = reportText
+            tempTextArea.style.position = 'fixed'
+            tempTextArea.style.left = '-9999px'
+            tempTextArea.id = 'copyableDebugReport'
+            document.body.appendChild(tempTextArea)
+            console.log('DEBUG: Temporary copyable text area created with ID: copyableDebugReport')
+        } catch (error) {
+            console.error('DEBUG: Failed to create copyable text area:', error)
+        }
+        
+        return reportText
     }
     
     // Status and debugging methods
