@@ -118,13 +118,43 @@ class StripePaymentManager(private val context: Context) {
             Log.d(TAG, "  - Location ID: $testLocationId")
             Log.d(TAG, "  - Publishable Key: ${testPublishableKey.take(20)}...")
             
-            // Initialize Tap to Pay reader with test location
+            // Check if already connected before attempting to initialize
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                initializeTapToPayReader(testLocationId)
+                checkAndInitializeTapToPayReader(testLocationId)
             }, 2000) // Give Terminal time to fully initialize
             
         } catch (e: Exception) {
             Log.e(TAG, "Error in auto-configuration", e)
+        }
+    }
+    
+    /**
+     * Check connection state and initialize Tap to Pay reader safely
+     */
+    private fun checkAndInitializeTapToPayReader(locationId: String) {
+        try {
+            if (!Terminal.isInitialized()) {
+                Log.e(TAG, "Terminal not initialized, cannot check reader state")
+                return
+            }
+            
+            val connectedReader = Terminal.getInstance().connectedReader
+            if (connectedReader != null) {
+                Log.d(TAG, "Already connected to reader: ${connectedReader.id}")
+                Log.d(TAG, "Reader type: ${connectedReader.deviceType}")
+                Log.d(TAG, "✅ Tap to Pay reader already connected and ready!")
+                
+                // Store the already connected reader
+                connectedTapToPayReader = connectedReader
+                return
+            }
+            
+            // No existing connection, proceed with initialization
+            Log.d(TAG, "No existing reader connection, initializing Tap to Pay reader...")
+            initializeTapToPayReader(locationId)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking reader connection state", e)
         }
     }
     
@@ -438,6 +468,14 @@ class StripePaymentManager(private val context: Context) {
             
             if (!Terminal.isInitialized()) {
                 Log.e(TAG, "Terminal not initialized, cannot discover readers")
+                return
+            }
+            
+            // Check if already connected to a reader
+            val existingReader = Terminal.getInstance().connectedReader
+            if (existingReader != null) {
+                Log.d(TAG, "Already connected to reader: ${existingReader.id}, skipping discovery")
+                connectedTapToPayReader = existingReader
                 return
             }
             
