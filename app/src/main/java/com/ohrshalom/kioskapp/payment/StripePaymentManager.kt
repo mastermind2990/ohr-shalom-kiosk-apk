@@ -346,8 +346,8 @@ class StripePaymentManager(private val context: Context) {
                 Log.d(TAG, "Collecting payment method with NFC reader...")
                 val collectedPaymentIntent = collectPaymentMethod(paymentIntent)
                 
-                Log.d(TAG, "Processing NFC payment...")
-                val processedPaymentIntent = processPayment(collectedPaymentIntent)
+                Log.d(TAG, "Confirming NFC payment intent...")
+                val processedPaymentIntent = confirmPaymentIntent(collectedPaymentIntent)
                 
                 val success = processedPaymentIntent.status.toString().contains("succeeded", ignoreCase = true)
                 
@@ -365,7 +365,7 @@ class StripePaymentManager(private val context: Context) {
                 Log.w(TAG, "Falling back to payment simulation due to Terminal error")
                 simulateNfcPayment(paymentIntent)
             } catch (e: Exception) {
-                Log.e(TAG, "Unexpected error during payment processing", e)
+                Log.e(TAG, "Unexpected error during payment confirmation", e)
                 // Fall back to simulation for any other error
                 Log.w(TAG, "Falling back to payment simulation due to unexpected error")
                 simulateNfcPayment(paymentIntent)
@@ -774,9 +774,9 @@ class StripePaymentManager(private val context: Context) {
             Log.d(TAG, "Collecting payment method with Tap to Pay reader...")
             val collectedPaymentIntent = collectPaymentMethod(paymentIntent)
             
-            // Process the payment (following official Stripe demo pattern)
-            Log.d(TAG, "Processing payment...")
-            val processedPaymentIntent = processPayment(collectedPaymentIntent)
+            // Confirm the payment intent (following official Stripe demo pattern)
+            Log.d(TAG, "Confirming payment intent...")
+            val processedPaymentIntent = confirmPaymentIntent(collectedPaymentIntent)
             
             val success = processedPaymentIntent.status.toString().contains("succeeded", ignoreCase = true)
             
@@ -820,27 +820,27 @@ class StripePaymentManager(private val context: Context) {
     }
     
     /**
-     * Process payment using Stripe Terminal (following official demo patterns)
+     * Confirm payment intent using Stripe Terminal (following official demo patterns)
      */
-    private suspend fun processPayment(paymentIntent: PaymentIntent): PaymentIntent = suspendCancellableCoroutine { continuation ->
+    private suspend fun confirmPaymentIntent(paymentIntent: PaymentIntent): PaymentIntent = suspendCancellableCoroutine { continuation ->
         try {
-            Log.d(TAG, "Starting processPayment for PaymentIntent: ${paymentIntent.id}")
+            Log.d(TAG, "Starting confirmPaymentIntent for PaymentIntent: ${paymentIntent.id}")
             
-            Terminal.getInstance().processPayment(paymentIntent, object : PaymentIntentCallback {
+            Terminal.getInstance().confirmPaymentIntent(paymentIntent, object : PaymentIntentCallback {
                 override fun onSuccess(paymentIntent: PaymentIntent) {
-                    Log.d(TAG, "processPayment successful - PaymentIntent: ${paymentIntent.id}")
+                    Log.d(TAG, "confirmPaymentIntent successful - PaymentIntent: ${paymentIntent.id}")
                     Log.d(TAG, "Payment status: ${paymentIntent.status}")
                     Log.d(TAG, "Amount: ${paymentIntent.amount}")
                     continuation.resume(paymentIntent)
                 }
                 
                 override fun onFailure(exception: TerminalException) {
-                    Log.e(TAG, "processPayment failed: ${exception.errorMessage}")
+                    Log.e(TAG, "confirmPaymentIntent failed: ${exception.errorMessage}")
                     continuation.resumeWithException(exception)
                 }
             })
         } catch (e: Exception) {
-            Log.e(TAG, "Error in processPayment", e)
+            Log.e(TAG, "Error in confirmPaymentIntent", e)
             continuation.resumeWithException(e)
         }
     }
