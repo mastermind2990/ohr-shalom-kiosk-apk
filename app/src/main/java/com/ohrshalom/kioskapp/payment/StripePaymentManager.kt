@@ -19,7 +19,6 @@ import com.stripe.stripeterminal.external.models.ConnectionTokenException
 import com.stripe.stripeterminal.external.models.DeviceType
 import com.stripe.stripeterminal.external.models.DisconnectReason
 import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
-import com.stripe.stripeterminal.external.models.DiscoveryMethod
 import com.stripe.stripeterminal.external.models.ListLocationsParameters
 import com.stripe.stripeterminal.external.models.Location
 import com.stripe.stripeterminal.external.models.PaymentIntent
@@ -628,14 +627,9 @@ class StripePaymentManager(private val context: Context) {
                 return
             }
             
-            // Use correct LOCAL_MOBILE discovery method like official sample
+            // Use correct 4.6.0 API - TapToPayDiscoveryConfiguration with location specification
             val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            val discoveryConfig = DiscoveryConfiguration(
-                timeout = 0,
-                discoveryMethod = com.stripe.stripeterminal.external.models.DiscoveryMethod.LOCAL_MOBILE,
-                isSimulated = isDebuggable,
-                location = locationId
-            )
+            val discoveryConfig = DiscoveryConfiguration.TapToPayDiscoveryConfiguration(isDebuggable)
             
             // Save the cancelable reference for proper cleanup
             discoverCancelable = Terminal.getInstance().discoverReaders(
@@ -684,10 +678,13 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "Connecting Tap to Pay reader ${reader.id} to location: $locationId")
             
-            // Use correct LOCAL_MOBILE connection configuration like official sample
-            val connectionConfig = ConnectionConfiguration.LocalMobileConnectionConfiguration(locationId)
+            // Use correct 4.6.0 API - TapToPayConnectionConfiguration with location and listener
+            val connectionConfig = ConnectionConfiguration.TapToPayConnectionConfiguration(
+                locationId = locationId,
+                tapToPayReaderListener = tapToPayReaderListener
+            )
             
-            Terminal.getInstance().connectLocalMobileReader(
+            Terminal.getInstance().connectReader(
                 reader,
                 connectionConfig,
                 object : ReaderCallback {
@@ -822,14 +819,9 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "🔄 Attempting reconnection to reader: $serialNumber")
             
-            // Try to discover readers using LOCAL_MOBILE method and find the one with matching serial number
+            // Try to discover readers using 4.6.0 TapToPayDiscoveryConfiguration and find the one with matching serial number
             val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            val discoveryConfig = DiscoveryConfiguration(
-                timeout = 0,
-                discoveryMethod = DiscoveryMethod.LOCAL_MOBILE,
-                isSimulated = isDebuggable,
-                location = locationId
-            )
+            val discoveryConfig = DiscoveryConfiguration.TapToPayDiscoveryConfiguration(isDebuggable)
             
             discoverCancelable = Terminal.getInstance().discoverReaders(
                 discoveryConfig,
