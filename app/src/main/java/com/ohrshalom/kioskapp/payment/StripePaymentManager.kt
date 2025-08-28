@@ -165,6 +165,19 @@ class StripePaymentManager(private val context: Context) {
     }
     
     /**
+     * Clear stored reader information (when old reader is no longer valid)
+     */
+    private fun clearStoredReaderData() {
+        sharedPrefs.edit()
+            .remove(KEY_READER_SERIAL_NUMBER)
+            .remove(KEY_READER_LOCATION_ID)
+            .remove(KEY_LAST_CONNECTION_TIME)
+            .apply()
+        
+        Log.d(TAG, "🧹 Cleared stored reader data (old reader no longer valid)")
+    }
+    
+    /**
      * Check if we have existing reader registration
      */
     private fun hasExistingReaderRegistration(): Boolean {
@@ -516,12 +529,24 @@ class StripePaymentManager(private val context: Context) {
             "Never"
         }
         
+        val currentReaderId = connectedTapToPayReader?.id
+        val readerStatus = when {
+            currentReaderId == null -> "❌ No reader connected"
+            currentReaderId == serialNumber -> "✅ Connected to stored reader"
+            serialNumber == null -> "🆕 New reader (not yet stored)"
+            else -> "⚠️ Connected reader differs from stored"
+        }
+        
         return """
-            📱 Stored Reader Information:
-            • Serial Number: ${serialNumber ?: "Not registered"}
+            📱 Reader Management Status:
+            • Stored Serial: ${serialNumber ?: "Not registered"}
+            • Current Serial: ${currentReaderId ?: "None"}  
             • Location ID: $locationId
             • Last Connection: $lastConnectionTime
-            • Current Reader: ${connectedTapToPayReader?.id ?: "None"}
+            • Status: $readerStatus
+            
+            💡 Note: Each APK install may get a new serial number from Stripe.
+            The system will automatically store and reuse whatever serial is assigned.
         """.trimIndent()
     }
     
@@ -667,11 +692,23 @@ class StripePaymentManager(private val context: Context) {
                 connectionConfig,
                 object : ReaderCallback {
                     override fun onSuccess(connectedReader: Reader) {
-                        Log.d(TAG, "✅ Tap to Pay reader connected successfully!")
+                        val previousSerialNumber = getStoredReaderSerialNumber()
+                        val isNewReader = previousSerialNumber != connectedReader.id
+                        
+                        Log.d(TAG, "✅ Local Mobile reader connected successfully!")
                         Log.d(TAG, "Reader ID: ${connectedReader.id}")
                         Log.d(TAG, "Location: ${connectedReader.location}")
                         Log.d(TAG, "Device Type: ${connectedReader.deviceType}")
-                        Log.d(TAG, "🎉 Android tablet is now registered as Tap to Pay reader for location: $locationId")
+                        
+                        if (isNewReader) {
+                            Log.d(TAG, "🆕 NEW READER REGISTERED!")
+                            Log.d(TAG, "  - Previous Serial: ${previousSerialNumber ?: "None"}")
+                            Log.d(TAG, "  - New Serial: ${connectedReader.id}")
+                            Log.d(TAG, "🎉 Android tablet assigned NEW reader serial for location: $locationId")
+                        } else {
+                            Log.d(TAG, "🔄 EXISTING READER RECONNECTED!")
+                            Log.d(TAG, "🎉 Android tablet reconnected to existing reader for location: $locationId")
+                        }
                         
                         // Store the connected reader and persist details
                         connectedTapToPayReader = connectedReader
@@ -806,8 +843,17 @@ class StripePaymentManager(private val context: Context) {
                             Log.d(TAG, "✅ Found target reader: ${targetReader.id}")
                             connectTapToPayReader(targetReader, locationId)
                         } else {
-                            Log.w(TAG, "⚠️ Target reader $serialNumber not found, will create new registration")
-                            // If stored reader not found, proceed with new initialization
+                            Log.w(TAG, "⚠️ Target reader $serialNumber not found")
+                            Log.d(TAG, "📝 Available readers in discovery:")
+                            readers.forEach { reader ->
+                                Log.d(TAG, "  - Reader: ${reader.id} (${reader.deviceType})")
+                            }
+                            Log.d(TAG, "🆕 Will clear old data and create new registration")
+                            
+                            // Clear old stored data since the reader is no longer valid
+                            clearStoredReaderData()
+                            
+                            // Proceed with new initialization (which will store new serial number)
                             initializeTapToPayReader(locationId)
                         }
                     }
@@ -819,6 +865,11 @@ class StripePaymentManager(private val context: Context) {
                     
                     override fun onFailure(e: TerminalException) {
                         Log.e(TAG, "❌ Reader reconnection discovery failed: ${e.errorMessage}")
+                        Log.d(TAG, "🆕 Will clear old data and create new registration due to discovery failure")
+                        
+                        // Clear old stored data since reconnection failed
+                        clearStoredReaderData()
+                        
                         // Fallback to new initialization
                         initializeTapToPayReader(locationId)
                     }
@@ -827,6 +878,11 @@ class StripePaymentManager(private val context: Context) {
             
         } catch (e: Exception) {
             Log.e(TAG, "Error during reader reconnection attempt", e)
+            Log.d(TAG, "🆕 Will clear old data and create new registration due to exception")
+            
+            // Clear old stored data since reconnection failed with exception
+            clearStoredReaderData()
+            
             // Fallback to new initialization
             initializeTapToPayReader(locationId)
         }
