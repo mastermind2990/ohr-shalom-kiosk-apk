@@ -4,7 +4,7 @@
 class OhrShalomKiosk {
     constructor() {
         // Get version from Android interface if available, fallback to hardcoded
-        this.version = this.getVersionFromAndroid() || '1.9.9-compilation-fixed'
+        this.version = this.getVersionFromAndroid() || '1.10.0-payment-ui-enhanced'
         this.buildDate = '2025-08-28'
         // Configuration with Davenport, FL defaults
         this.config = {
@@ -271,6 +271,16 @@ class OhrShalomKiosk {
             this.cancelTapToPay()
         })
         
+        // Payment instruction modal handlers
+        document.getElementById('cancelPaymentInstruction').addEventListener('click', () => {
+            this.cancelPaymentFlow()
+        })
+        
+        // Payment status modal handlers  
+        document.getElementById('cancelPaymentStatus').addEventListener('click', () => {
+            this.cancelPaymentFlow()
+        })
+        
         // Admin configuration modal handlers
         document.getElementById('adminConfigClose').addEventListener('click', () => {
             this.hideAdminConfigModal()
@@ -477,28 +487,98 @@ class OhrShalomKiosk {
         try {
             const email = document.getElementById('emailInput').value.trim()
             
-            // Show tap to pay interface
-            document.getElementById('tapToPayInterface').classList.remove('hidden')
-            document.getElementById('tapToPayInterface').classList.add('slide-up')
+            // Show payment instruction popup
+            this.showPaymentInstructionModal(this.selectedAmount)
             
-            // Check if Android interface is available for real NFC payments
-            if (window.AndroidInterface && window.AndroidInterface.processNfcPayment) {
-                await this.processAndroidNfcPayment(this.selectedAmount, email)
-            } else {
-                // Fallback to demo payment for web testing
-                console.log('Android NFC not available, using demo mode')
-                await this.processDemoPayment(this.selectedAmount, email)
-            }
+            // Start payment processing after a brief delay
+            setTimeout(() => {
+                this.processPaymentFlow(this.selectedAmount, email)
+            }, 2000)
+            
         } catch (error) {
             console.error('Tap to Pay error:', error)
             this.showMessage('Tap to Pay failed: ' + error.message, 'error')
-            document.getElementById('tapToPayInterface').classList.add('hidden')
+            this.cancelPaymentFlow()
+        }
+    }
+    
+    showPaymentInstructionModal(amount) {
+        const modal = document.getElementById('paymentInstructionModal')
+        document.getElementById('instructionAmount').textContent = `$${amount.toFixed(2)}`
+        modal.classList.remove('hidden')
+    }
+    
+    showPaymentStatusModal(amount) {
+        // Hide instruction modal and show status modal
+        document.getElementById('paymentInstructionModal').classList.add('hidden')
+        
+        const modal = document.getElementById('paymentStatusModal')
+        document.getElementById('paymentStatusAmount').textContent = `$${amount.toFixed(2)}`
+        document.getElementById('paymentStatusTitle').textContent = 'Processing Payment'
+        document.getElementById('paymentStatusMessage').textContent = 'Card detected - Processing...'
+        document.getElementById('paymentProgressBar').style.width = '30%'
+        
+        // Reset icon to processing
+        const icon = document.getElementById('paymentStatusIcon')
+        icon.innerHTML = '<i class="fas fa-credit-card processing-spin text-blue-500"></i>'
+        
+        modal.classList.remove('hidden')
+    }
+    
+    updatePaymentStatus(status, message, progress = null) {
+        document.getElementById('paymentStatusTitle').textContent = status
+        document.getElementById('paymentStatusMessage').textContent = message
+        
+        if (progress !== null) {
+            document.getElementById('paymentProgressBar').style.width = `${progress}%`
+        }
+    }
+    
+    showAdditionalInfoRequest(title, content) {
+        const section = document.getElementById('additionalInfoSection')
+        document.getElementById('additionalInfoTitle').textContent = title
+        document.getElementById('additionalInfoContent').innerHTML = content
+        section.classList.remove('hidden')
+    }
+    
+    cancelPaymentFlow() {
+        // Hide all payment modals
+        document.getElementById('paymentInstructionModal').classList.add('hidden')
+        document.getElementById('paymentStatusModal').classList.add('hidden')
+        document.getElementById('additionalInfoSection').classList.add('hidden')
+        
+        // Cancel Android payment if in progress
+        if (window.AndroidInterface && window.AndroidInterface.cancelPayment) {
+            window.AndroidInterface.cancelPayment()
+        }
+        
+        this.showMessage('Payment cancelled', 'info')
+    }
+    
+    async processPaymentFlow(amountDollars, email) {
+        try {
+            // Show status modal
+            this.showPaymentStatusModal(amountDollars)
+            
+            // Check if Android interface is available for real NFC payments
+            if (window.AndroidInterface && window.AndroidInterface.processNfcPayment) {
+                await this.processAndroidNfcPayment(amountDollars, email)
+            } else {
+                // Fallback to demo payment for web testing
+                console.log('Android NFC not available, using demo mode')
+                await this.processDemoPayment(amountDollars, email)
+            }
+        } catch (error) {
+            console.error('Payment flow error:', error)
+            this.showMessage('Payment failed: ' + error.message, 'error')
+            this.cancelPaymentFlow()
         }
     }
     
     async processAndroidNfcPayment(amountDollars, email) {
         try {
-            this.showMessage('Initializing NFC payment system...', 'info')
+            // Update status
+            this.updatePaymentStatus('Initializing', 'Connecting to payment system...', 20)
             
             // Convert dollars to cents for Stripe
             const amountCents = Math.round(amountDollars * 100)
@@ -512,31 +592,54 @@ class OhrShalomKiosk {
                 email: email || null
             }
             
-            // Call Android method to start NFC payment
-            this.showMessage('Ready for NFC payment - Please tap your card or device', 'info')
+            // Update status for card reading
+            this.updatePaymentStatus('Card Reading', 'Waiting for card tap...', 40)
             
+            // Call Android method to start NFC payment
             const result = window.AndroidInterface.processNfcPayment(JSON.stringify(paymentData))
             
-            // Android will handle the NFC interaction and return result
+            // Update progress based on result
             if (result === 'success') {
-                this.showMessage('Payment successful! Thank you for your donation', 'success')
+                this.updatePaymentStatus('Processing', 'Confirming payment...', 80)
                 
-                // Show success interface
+                // Simulate processing time
                 setTimeout(() => {
-                    this.showSuccessInterface(amountDollars)
+                    this.updatePaymentStatus('Complete', 'Payment successful!', 100)
+                    
+                    // Update icon to success
+                    const icon = document.getElementById('paymentStatusIcon')
+                    icon.innerHTML = '<i class="fas fa-check-circle text-green-500"></i>'
+                    
+                    // Show thank you after delay
+                    setTimeout(() => {
+                        this.showThankYouPopup(amountDollars)
+                    }, 1500)
                 }, 1000)
                 
-                // Reset interface after delay
-                setTimeout(() => {
-                    this.resetInterface()
-                }, 5000)
+            } else if (result === 'additional_info_required') {
+                // Handle cases where bank requires additional information
+                this.showAdditionalInfoRequest(
+                    'Additional Verification Required',
+                    '<p class="mb-3">Your bank requires additional verification.</p><input type="text" placeholder="ZIP Code" class="w-full px-3 py-2 border rounded" /><button class="mt-2 px-4 py-2 bg-blue-500 text-white rounded">Submit</button>'
+                )
             } else {
-                throw new Error('Payment was not completed or failed')
+                throw new Error(result || 'Payment was not completed or failed')
             }
             
         } catch (error) {
             console.error('Android NFC payment error:', error)
-            this.showMessage(`NFC Payment failed: ${error.message}`, 'error')
+            
+            // Update status to show error
+            this.updatePaymentStatus('Error', error.message, 0)
+            const icon = document.getElementById('paymentStatusIcon')
+            icon.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500"></i>'
+            
+            // Auto close after delay
+            setTimeout(() => {
+                this.cancelPaymentFlow()
+                this.showMessage(`Payment failed: ${error.message}`, 'error')
+            }, 3000)
+            
             throw error
         }
     }
@@ -588,6 +691,22 @@ class OhrShalomKiosk {
         document.getElementById('successAmount').textContent = `$${amount.toFixed(2)}`
     }
     
+    showThankYouPopup(amount) {
+        // Hide payment status modal
+        document.getElementById('paymentStatusModal').classList.add('hidden')
+        
+        // Show thank you popup
+        const popup = document.getElementById('thankYouPopup')
+        document.getElementById('thankYouAmount').textContent = `$${amount.toFixed(2)}`
+        popup.classList.remove('hidden')
+        
+        // Auto-close after 5 seconds
+        setTimeout(() => {
+            popup.classList.add('hidden')
+            this.resetInterface()
+        }, 5000)
+    }
+    
     cancelTapToPay() {
         document.getElementById('tapToPayInterface').classList.add('hidden')
         this.showMessage('Tap to Pay cancelled', 'info')
@@ -604,10 +723,14 @@ class OhrShalomKiosk {
         // Clear email input
         document.getElementById('emailInput').value = ''
         
-        // Hide all payment interfaces
+        // Hide all payment interfaces and modals
         document.getElementById('tapToPayInterface').classList.add('hidden')
         document.getElementById('processingInterface').classList.add('hidden')
         document.getElementById('successInterface').classList.add('hidden')
+        document.getElementById('paymentInstructionModal').classList.add('hidden')
+        document.getElementById('paymentStatusModal').classList.add('hidden')
+        document.getElementById('thankYouPopup').classList.add('hidden')
+        document.getElementById('additionalInfoSection').classList.add('hidden')
         
         // Remove all animations and highlights
         document.querySelectorAll('.amount-button').forEach(btn => {

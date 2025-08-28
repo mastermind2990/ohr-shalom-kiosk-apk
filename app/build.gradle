@@ -11,8 +11,8 @@ android {
         applicationId "com.ohrshalom.kioskapp"
         minSdk 26
         targetSdk 34
-        versionCode 19
-        versionName "1.9.9-compilation-fixed"
+        versionCode 20
+        versionName "1.10.0-payment-ui-enhanced"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

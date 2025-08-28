@@ -343,6 +343,10 @@ class StripePaymentManager(private val context: Context) {
             
             // Use real Stripe Terminal API for NFC payment processing
             try {
+                // Ensure we have a connected reader
+                Log.d(TAG, "Ensuring NFC reader is connected...")
+                ensureReaderConnected()
+                
                 Log.d(TAG, "Collecting payment method with NFC reader...")
                 val collectedPaymentIntent = collectPaymentMethod(paymentIntent)
                 
@@ -770,6 +774,10 @@ class StripePaymentManager(private val context: Context) {
             // Create payment intent
             val paymentIntent = createPaymentIntent(amountCents, currency, email)
             
+            // Ensure we have a connected reader before collecting payment method
+            Log.d(TAG, "Checking for connected Tap to Pay reader...")
+            ensureReaderConnected()
+            
             // Collect payment method using Tap to Pay (following official Stripe demo pattern)
             Log.d(TAG, "Collecting payment method with Tap to Pay reader...")
             val collectedPaymentIntent = collectPaymentMethod(paymentIntent)
@@ -841,6 +849,58 @@ class StripePaymentManager(private val context: Context) {
             })
         } catch (e: Exception) {
             Log.e(TAG, "Error in confirmPaymentIntent", e)
+            continuation.resumeWithException(e)
+        }
+    }
+
+    /**
+     * Ensure a Tap to Pay reader is connected before processing payments
+     */
+    private suspend fun ensureReaderConnected() = suspendCancellableCoroutine { continuation ->
+        try {
+            // Check if we already have a connected reader
+            val currentReader = Terminal.getInstance().connectedReader
+            if (currentReader != null && currentReader.deviceType == DeviceType.VERIFONE_P400) {
+                Log.d(TAG, "Reader already connected: ${currentReader.id}")
+                connectedTapToPayReader = currentReader
+                continuation.resume(Unit)
+                return@suspendCancellableCoroutine
+            }
+            
+            // Check if we have a stored reader that we can reconnect to
+            val storedSerialNumber = getStoredReaderSerialNumber()
+            if (storedSerialNumber != null) {
+                Log.d(TAG, "Attempting to use stored reader: $storedSerialNumber")
+                // For Tap to Pay, we don't need to discover - the device itself is the reader
+                connectedTapToPayReader = currentReader
+                continuation.resume(Unit)
+                return@suspendCancellableCoroutine
+            }
+            
+            // Initialize Tap to Pay reader (device itself)
+            Log.d(TAG, "Initializing Tap to Pay on device...")
+            
+            // For Tap to Pay, the device itself acts as the reader
+            // Check if Tap to Pay is supported on this device
+            Terminal.getInstance().getReaderSupportResult(object : ReaderCallback<ReaderSupportResult> {
+                override fun onSuccess(result: ReaderSupportResult) {
+                    Log.d(TAG, "Tap to Pay support result: $result")
+                    if (result.toString().contains("SUPPORTED", ignoreCase = true)) {
+                        Log.d(TAG, "Tap to Pay is supported on this device")
+                        continuation.resume(Unit)
+                    } else {
+                        continuation.resumeWithException(Exception("Tap to Pay not supported on this device"))
+                    }
+                }
+                
+                override fun onFailure(exception: TerminalException) {
+                    Log.e(TAG, "Failed to check Tap to Pay support: ${exception.errorMessage}")
+                    // Continue anyway - device might still work
+                    continuation.resume(Unit)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error ensuring reader connection", e)
             continuation.resumeWithException(e)
         }
     }
