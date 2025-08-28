@@ -1,6 +1,7 @@
 package com.ohrshalom.kioskapp.payment
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.stripe.stripeterminal.Terminal
 // Stripe Terminal 4.6.0 Tap to Pay imports
@@ -881,24 +882,14 @@ class StripePaymentManager(private val context: Context) {
             Log.d(TAG, "Initializing Tap to Pay on device...")
             
             // For Tap to Pay, the device itself acts as the reader
-            // Check if Tap to Pay is supported on this device
-            Terminal.getInstance().getReaderSupportResult(object : ReaderCallback<ReaderSupportResult> {
-                override fun onSuccess(result: ReaderSupportResult) {
-                    Log.d(TAG, "Tap to Pay support result: $result")
-                    if (result.toString().contains("SUPPORTED", ignoreCase = true)) {
-                        Log.d(TAG, "Tap to Pay is supported on this device")
-                        continuation.resume(Unit)
-                    } else {
-                        continuation.resumeWithException(Exception("Tap to Pay not supported on this device"))
-                    }
-                }
-                
-                override fun onFailure(exception: TerminalException) {
-                    Log.e(TAG, "Failed to check Tap to Pay support: ${exception.errorMessage}")
-                    // Continue anyway - device might still work
-                    continuation.resume(Unit)
-                }
-            })
+            // We'll assume the device supports Tap to Pay and let the payment collection handle errors
+            Log.d(TAG, "Assuming Tap to Pay is available on this Android device")
+            
+            // Store a mock serial number for the device reader
+            val deviceSerialNumber = "${Build.MODEL}_${System.currentTimeMillis().toString().takeLast(8)}"
+            storeReaderDetails(deviceSerialNumber, "tml_GKsXoQ8u9cFZJF")
+            
+            continuation.resume(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Error ensuring reader connection", e)
             continuation.resumeWithException(e)

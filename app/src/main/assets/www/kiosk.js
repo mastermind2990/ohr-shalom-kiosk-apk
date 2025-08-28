@@ -4,7 +4,7 @@
 class OhrShalomKiosk {
     constructor() {
         // Get version from Android interface if available, fallback to hardcoded
-        this.version = this.getVersionFromAndroid() || '1.10.0-payment-ui-enhanced'
+        this.version = this.getVersionFromAndroid() || '1.10.1-reader-connection-fixed'
         this.buildDate = '2025-08-28'
         // Configuration with Davenport, FL defaults
         this.config = {
