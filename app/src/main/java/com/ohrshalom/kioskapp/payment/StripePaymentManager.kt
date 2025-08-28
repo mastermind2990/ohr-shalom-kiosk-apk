@@ -13,11 +13,15 @@ import com.stripe.stripeterminal.external.callable.PaymentIntentCallback
 import com.stripe.stripeterminal.external.callable.ReaderCallback
 import com.stripe.stripeterminal.external.callable.TerminalListener
 import com.stripe.stripeterminal.external.callable.TapToPayReaderListener
+import com.stripe.stripeterminal.external.callable.LocationListCallback
 import com.stripe.stripeterminal.external.models.ConnectionConfiguration
 import com.stripe.stripeterminal.external.models.ConnectionTokenException
 import com.stripe.stripeterminal.external.models.DeviceType
 import com.stripe.stripeterminal.external.models.DisconnectReason
 import com.stripe.stripeterminal.external.models.DiscoveryConfiguration
+import com.stripe.stripeterminal.external.models.DiscoveryMethod
+import com.stripe.stripeterminal.external.models.ListLocationsParameters
+import com.stripe.stripeterminal.external.models.Location
 import com.stripe.stripeterminal.external.models.PaymentIntent
 import com.stripe.stripeterminal.external.models.PaymentIntentParameters
 import com.stripe.stripeterminal.external.models.Reader
@@ -190,7 +194,7 @@ class StripePaymentManager(private val context: Context) {
             if (connectedReader != null) {
                 Log.d(TAG, "Already connected to reader: ${connectedReader.id}")
                 Log.d(TAG, "Reader type: ${connectedReader.deviceType}")
-                Log.d(TAG, "✅ Tap to Pay reader already connected and ready!")
+                Log.d(TAG, "✅ Local Mobile reader already connected and ready!")
                 
                 // Store the already connected reader and update persistent storage
                 connectedTapToPayReader = connectedReader
@@ -201,21 +205,58 @@ class StripePaymentManager(private val context: Context) {
                 return
             }
             
-            // Check if we have existing reader registration
-            val storedSerialNumber = getStoredReaderSerialNumber()
-            if (storedSerialNumber != null) {
-                Log.d(TAG, "🔄 Attempting to reconnect to existing reader: $storedSerialNumber")
-                // Try to reconnect to the existing reader instead of creating new one
-                attemptReaderReconnection(storedSerialNumber, locationId)
-            } else {
-                // No existing registration, proceed with new initialization
-                Log.d(TAG, "📝 No existing reader registration, initializing new Tap to Pay reader...")
-                initializeTapToPayReader(locationId)
-            }
+            // First validate the location exists (like official sample does)
+            Log.d(TAG, "🔍 Validating location exists: $locationId")
+            validateLocationAndInitializeReader(locationId)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error checking reader connection state", e)
         }
+    }
+    
+    /**
+     * Validate location exists before initializing reader (following official sample pattern)
+     */
+    private fun validateLocationAndInitializeReader(locationId: String) {
+        Terminal.getInstance().listLocations(
+            ListLocationsParameters.Builder().apply {
+                limit = 100
+            }.build(),
+            object : LocationListCallback {
+                override fun onSuccess(locations: List<Location>, hasMore: Boolean) {
+                    Log.d(TAG, "📍 Found ${locations.size} locations")
+                    
+                    val targetLocation = locations.find { it.id == locationId }
+                    if (targetLocation != null) {
+                        Log.d(TAG, "✅ Location validated: ${targetLocation.displayName} (${targetLocation.id})")
+                        
+                        // Check if we have existing reader registration
+                        val storedSerialNumber = getStoredReaderSerialNumber()
+                        if (storedSerialNumber != null) {
+                            Log.d(TAG, "🔄 Attempting to reconnect to existing reader: $storedSerialNumber")
+                            attemptReaderReconnection(storedSerialNumber, locationId)
+                        } else {
+                            Log.d(TAG, "📝 No existing reader registration, initializing new Local Mobile reader...")
+                            initializeTapToPayReader(locationId)
+                        }
+                    } else {
+                        Log.e(TAG, "❌ Location $locationId not found in account. Available locations:")
+                        locations.forEach { location ->
+                            Log.e(TAG, "  - ${location.displayName} (${location.id})")
+                        }
+                    }
+                }
+                
+                override fun onFailure(e: TerminalException) {
+                    Log.e(TAG, "❌ Failed to load locations: ${e.errorMessage}")
+                    // Proceed anyway with stored reader reconnection
+                    val storedSerialNumber = getStoredReaderSerialNumber()
+                    if (storedSerialNumber != null) {
+                        attemptReaderReconnection(storedSerialNumber, locationId)
+                    }
+                }
+            }
+        )
     }
     
     /**
@@ -562,9 +603,14 @@ class StripePaymentManager(private val context: Context) {
                 return
             }
             
-            // Use correct 4.6.0 API - TapToPayDiscoveryConfiguration with isSimulated parameter
+            // Use correct LOCAL_MOBILE discovery method like official sample
             val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            val discoveryConfig = DiscoveryConfiguration.TapToPayDiscoveryConfiguration(isDebuggable)
+            val discoveryConfig = DiscoveryConfiguration(
+                timeout = 0,
+                discoveryMethod = com.stripe.stripeterminal.external.models.DiscoveryMethod.LOCAL_MOBILE,
+                isSimulated = isDebuggable,
+                location = locationId
+            )
             
             // Save the cancelable reference for proper cleanup
             discoverCancelable = Terminal.getInstance().discoverReaders(
@@ -613,13 +659,10 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "Connecting Tap to Pay reader ${reader.id} to location: $locationId")
             
-            // Use correct 4.6.0 API - ConnectionConfiguration.TapToPayConnectionConfiguration with required parameters
-            val connectionConfig = ConnectionConfiguration.TapToPayConnectionConfiguration(
-                locationId = locationId,
-                tapToPayReaderListener = tapToPayReaderListener
-            )
+            // Use correct LOCAL_MOBILE connection configuration like official sample
+            val connectionConfig = ConnectionConfiguration.LocalMobileConnectionConfiguration(locationId)
             
-            Terminal.getInstance().connectReader(
+            Terminal.getInstance().connectLocalMobileReader(
                 reader,
                 connectionConfig,
                 object : ReaderCallback {
@@ -742,9 +785,14 @@ class StripePaymentManager(private val context: Context) {
         try {
             Log.d(TAG, "🔄 Attempting reconnection to reader: $serialNumber")
             
-            // Try to discover readers and find the one with matching serial number
+            // Try to discover readers using LOCAL_MOBILE method and find the one with matching serial number
             val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            val discoveryConfig = DiscoveryConfiguration.TapToPayDiscoveryConfiguration(isDebuggable)
+            val discoveryConfig = DiscoveryConfiguration(
+                timeout = 0,
+                discoveryMethod = DiscoveryMethod.LOCAL_MOBILE,
+                isSimulated = isDebuggable,
+                location = locationId
+            )
             
             discoverCancelable = Terminal.getInstance().discoverReaders(
                 discoveryConfig,
