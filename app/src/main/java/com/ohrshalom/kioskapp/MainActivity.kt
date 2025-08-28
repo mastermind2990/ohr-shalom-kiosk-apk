@@ -27,7 +27,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
-import com.ohrshalom.kioskapp.BuildConfig
 import com.ohrshalom.kioskapp.config.ConfigManager
 import com.ohrshalom.kioskapp.databinding.ActivityMainBinding
 import com.ohrshalom.kioskapp.payment.StripePaymentManager
