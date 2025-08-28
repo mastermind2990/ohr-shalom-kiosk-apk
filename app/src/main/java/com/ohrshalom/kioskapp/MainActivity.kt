@@ -67,7 +67,8 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "OhrShalomKiosk"
-        private const val VERSION = "1.3-admin-interface"
+        // Get version from BuildConfig instead of hardcoding
+        private val VERSION = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         private const val PREFS_NAME = "kiosk_preferences"
         private const val KEY_KIOSK_MODE = "kiosk_mode_enabled"
         
