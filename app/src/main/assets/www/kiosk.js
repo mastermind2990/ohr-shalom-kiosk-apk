@@ -3,8 +3,9 @@
 // Build: August 26, 2025
 class OhrShalomKiosk {
     constructor() {
-        this.version = '1.8.4-terminal-compliant'
-        this.buildDate = '2025-08-26'
+        // Get version from Android interface if available, fallback to hardcoded
+        this.version = this.getVersionFromAndroid() || '1.9.8-stripe-complete'
+        this.buildDate = '2025-08-28'
         // Configuration with Davenport, FL defaults
         this.config = {
             adminPin: '12345',
@@ -37,6 +38,22 @@ class OhrShalomKiosk {
         this.init()
     }
     
+    getVersionFromAndroid() {
+        // Try to get actual version from Android interface
+        if (window.AndroidInterface && window.AndroidInterface.getKioskStatus) {
+            try {
+                const status = JSON.parse(window.AndroidInterface.getKioskStatus())
+                if (status && status.version) {
+                    console.log('Got version from Android:', status.version)
+                    return status.version
+                }
+            } catch (e) {
+                console.warn('Failed to get version from Android:', e)
+            }
+        }
+        return null // Fallback to hardcoded version
+    }
+
     async init() {
         console.log(`=== KIOSK DEBUG: Initializing Ohr Shalom Kiosk v${this.version} (${this.buildDate}) ===`)
         

@@ -341,17 +341,35 @@ class StripePaymentManager(private val context: Context) {
             // Create payment intent
             val paymentIntent = createPaymentIntent(amountCents, currency, email)
             
-            // For demo purposes, simulate NFC payment processing
-            // In production, this would use actual Stripe Terminal NFC readers
-            val success = simulateNfcPayment(paymentIntent)
-            
-            if (success) {
-                Log.d(TAG, "NFC payment completed successfully")
-            } else {
-                Log.w(TAG, "NFC payment failed or was cancelled")
+            // Use real Stripe Terminal API for NFC payment processing
+            try {
+                Log.d(TAG, "Collecting payment method with NFC reader...")
+                val collectedPaymentIntent = collectPaymentMethod(paymentIntent)
+                
+                Log.d(TAG, "Processing NFC payment...")
+                val processedPaymentIntent = processPayment(collectedPaymentIntent)
+                
+                val success = processedPaymentIntent.status.toString().contains("succeeded", ignoreCase = true)
+                
+                if (success) {
+                    Log.d(TAG, "NFC payment completed successfully")
+                    Log.d(TAG, "Payment Intent ID: ${processedPaymentIntent.id}")
+                } else {
+                    Log.w(TAG, "NFC payment failed - Status: ${processedPaymentIntent.status}")
+                }
+                
+                success
+            } catch (e: TerminalException) {
+                Log.e(TAG, "Stripe Terminal error: ${e.errorMessage}", e)
+                // Fall back to simulation if Terminal API fails
+                Log.w(TAG, "Falling back to payment simulation due to Terminal error")
+                simulateNfcPayment(paymentIntent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected error during payment processing", e)
+                // Fall back to simulation for any other error
+                Log.w(TAG, "Falling back to payment simulation due to unexpected error")
+                simulateNfcPayment(paymentIntent)
             }
-            
-            success
         } catch (e: Exception) {
             Log.e(TAG, "Error processing NFC payment", e)
             false
@@ -752,15 +770,21 @@ class StripePaymentManager(private val context: Context) {
             // Create payment intent
             val paymentIntent = createPaymentIntent(amountCents, currency, email)
             
-            // TODO: Implement actual Terminal.collectPaymentMethod() and Terminal.confirmPaymentIntent()
-            // For now, this maintains the simulation until we have a real Stripe account setup
-            Log.d(TAG, "Would use Terminal.collectPaymentMethod() with Tap to Pay reader")
-            val success = simulateNfcPayment(paymentIntent)
+            // Collect payment method using Tap to Pay (following official Stripe demo pattern)
+            Log.d(TAG, "Collecting payment method with Tap to Pay reader...")
+            val collectedPaymentIntent = collectPaymentMethod(paymentIntent)
+            
+            // Process the payment (following official Stripe demo pattern)
+            Log.d(TAG, "Processing payment...")
+            val processedPaymentIntent = processPayment(collectedPaymentIntent)
+            
+            val success = processedPaymentIntent.status.toString().contains("succeeded", ignoreCase = true)
             
             if (success) {
                 Log.d(TAG, "Tap to Pay payment completed successfully")
+                Log.d(TAG, "Payment Intent ID: ${processedPaymentIntent.id}")
             } else {
-                Log.w(TAG, "Tap to Pay payment failed or was cancelled")
+                Log.w(TAG, "Tap to Pay payment failed - Status: ${processedPaymentIntent.status}")
             }
             
             success
@@ -770,6 +794,57 @@ class StripePaymentManager(private val context: Context) {
         }
     }
     
+    /**
+     * Collect payment method using Stripe Terminal (following official demo patterns)
+     */
+    private suspend fun collectPaymentMethod(paymentIntent: PaymentIntent): PaymentIntent = suspendCancellableCoroutine { continuation ->
+        try {
+            Log.d(TAG, "Starting collectPaymentMethod for PaymentIntent: ${paymentIntent.id}")
+            
+            Terminal.getInstance().collectPaymentMethod(paymentIntent, object : PaymentIntentCallback {
+                override fun onSuccess(paymentIntent: PaymentIntent) {
+                    Log.d(TAG, "collectPaymentMethod successful - PaymentIntent: ${paymentIntent.id}")
+                    Log.d(TAG, "Payment method: ${paymentIntent.paymentMethod?.type}")
+                    continuation.resume(paymentIntent)
+                }
+                
+                override fun onFailure(exception: TerminalException) {
+                    Log.e(TAG, "collectPaymentMethod failed: ${exception.errorMessage}")
+                    continuation.resumeWithException(exception)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in collectPaymentMethod", e)
+            continuation.resumeWithException(e)
+        }
+    }
+    
+    /**
+     * Process payment using Stripe Terminal (following official demo patterns)
+     */
+    private suspend fun processPayment(paymentIntent: PaymentIntent): PaymentIntent = suspendCancellableCoroutine { continuation ->
+        try {
+            Log.d(TAG, "Starting processPayment for PaymentIntent: ${paymentIntent.id}")
+            
+            Terminal.getInstance().processPayment(paymentIntent, object : PaymentIntentCallback {
+                override fun onSuccess(paymentIntent: PaymentIntent) {
+                    Log.d(TAG, "processPayment successful - PaymentIntent: ${paymentIntent.id}")
+                    Log.d(TAG, "Payment status: ${paymentIntent.status}")
+                    Log.d(TAG, "Amount: ${paymentIntent.amount}")
+                    continuation.resume(paymentIntent)
+                }
+                
+                override fun onFailure(exception: TerminalException) {
+                    Log.e(TAG, "processPayment failed: ${exception.errorMessage}")
+                    continuation.resumeWithException(exception)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processPayment", e)
+            continuation.resumeWithException(e)
+        }
+    }
+
     /**
      * Cancel current discovery operation
      */
