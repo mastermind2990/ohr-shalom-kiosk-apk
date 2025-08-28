@@ -27,6 +27,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.gson.Gson
+import com.ohrshalom.kioskapp.BuildConfig
 import com.ohrshalom.kioskapp.config.ConfigManager
 import com.ohrshalom.kioskapp.databinding.ActivityMainBinding
 import com.ohrshalom.kioskapp.payment.StripePaymentManager
@@ -67,7 +68,8 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "OhrShalomKiosk"
-        private const val VERSION = "1.3-admin-interface"
+        // Get version from BuildConfig instead of hardcoding
+        private val VERSION = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         private const val PREFS_NAME = "kiosk_preferences"
         private const val KEY_KIOSK_MODE = "kiosk_mode_enabled"
         
