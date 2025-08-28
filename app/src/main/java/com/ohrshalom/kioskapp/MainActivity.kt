@@ -67,8 +67,6 @@ class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "OhrShalomKiosk"
-        // Get version from BuildConfig instead of hardcoding
-        private val VERSION = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         private const val PREFS_NAME = "kiosk_preferences"
         private const val KEY_KIOSK_MODE = "kiosk_mode_enabled"
         
@@ -83,7 +81,7 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        Log.d(TAG, "=== Ohr Shalom Kiosk v$VERSION starting up ===")
+        Log.d(TAG, "=== Ohr Shalom Kiosk v${getAppVersion()} starting up ===")
         Log.d(TAG, "Build info - compileSdk: 34, targetSdk: 34, minSdk: 26")
         
         // Initialize components
@@ -572,7 +570,7 @@ class MainActivity : AppCompatActivity() {
         fun getKioskStatus(): String {
             return try {
                 val status = mapOf(
-                    "version" to VERSION,
+                    "version" to getAppVersion(),
                     "kioskMode" to isKioskModeEnabled,
                     "wakeLockHeld" to (wakeLock?.isHeld == true),
                     "nfcStatus" to getNfcStatus(),
@@ -737,6 +735,19 @@ class MainActivity : AppCompatActivity() {
         if (hasFocus && isKioskModeEnabled) {
             Log.d(TAG, "Window focus regained - re-enabling kiosk mode")
             enableKioskMode()
+        }
+    }
+    
+    /**
+     * Get app version from PackageManager instead of BuildConfig to avoid compilation issues
+     */
+    private fun getAppVersion(): String {
+        return try {
+            val packageInfo = packageManager.getPackageInfo(packageName, 0)
+            "${packageInfo.versionName} (${packageInfo.longVersionCode})"
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not get app version", e)
+            "1.9.6-complete-fixes (16)" // Fallback version
         }
     }
     
